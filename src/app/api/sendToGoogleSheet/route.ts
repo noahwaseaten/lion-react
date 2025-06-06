@@ -2,28 +2,16 @@
 
 import { NextResponse } from "next/server";
 
-type userInformation = {
-  firstName: string;
-  familyName: string;
-  age: number;
-  gender: "Male" | "Female";
-  type: "Participant" | "Civilian" | "Volunteer";
-  bib?: number;
-  category?: string;
-  phoneNumber?: string;
-  notes?: string;
-};
-
 const tempId = "AKfycbz3JqL3VcrgtMX9A750TFwxabg-BxkotQXrh6iv3iUwuyzJKQM_jLJejpPLJwHZknza";
 
 export async function POST(
   req: Request,
 ) {
 
-  const { data, count } =
+  const { count, name } =
     (await req.json()) as {
-      data: userInformation;
       count: number;
+      name: string; // legacy used data: userInformation
     };
 
   try {
@@ -32,11 +20,12 @@ export async function POST(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         data: {
-          ...data,
+          firstName: name,
           count,
           timestamp: new Date()
         },
       }),
+      cache: "no-store"
     }
     );
 

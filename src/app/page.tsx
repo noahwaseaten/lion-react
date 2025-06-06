@@ -8,6 +8,7 @@ const Home = () => {
         <div className="text-4xl font-black">LION</div>
         <div className="">Unleash your inner strength in the Push Up Challenge</div>
         <CustomButton name='Push Up Counter' link='/push-ups-counter' />
+        <CustomButton name='Push Up Counter Pretty' link='/push-ups-counter-pretty' />
       </div>
     </div>
   </div>
