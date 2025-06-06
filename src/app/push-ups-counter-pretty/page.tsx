@@ -82,12 +82,20 @@ const PushupsCounter = () => {
         case ' ':
           if (submittedRef.current) {
             e.preventDefault();
-            setCount(prev => prev + 1);
+            setCount(prev => {
+              const newCount = prev + 1;
+              countRef.current = newCount; // update ref now, not later
+              return newCount;
+            });
           }
           break;
         case 'g':
         case 'G':
-          setCount(prev => prev - 1);
+          setCount(prev => {
+            const newCount = prev - 1;
+            countRef.current = newCount;
+            return newCount;
+          });
           break;
       }
     };
