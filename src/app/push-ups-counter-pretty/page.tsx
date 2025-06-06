@@ -136,7 +136,7 @@ const PushupsCounter = () => {
         <div className='text-2xl w-1/2 mx-auto'>
         <div className='flex flex-col gap-2'>
           <div>
-          <div className='text-center mb-5 text-4xl'>Кой ще се напомпа сега?</div>
+          <div className='text-center mb-5 text-3xl'>Кой ще се напомпа сега?</div>
           <input
             type='text'
             id='firstName'
