@@ -1,4 +1,3 @@
-import Link from "next/link";
 import CustomButton from "./components/customButton";
 
 const Home = () => {
