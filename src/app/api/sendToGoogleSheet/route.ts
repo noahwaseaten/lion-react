@@ -40,18 +40,6 @@ export async function POST(
     }
     );
 
-    console.log({
-      data: {
-        ...data,
-        count,
-        timestamp: new Date()
-      }
-    });
-
-    const res = await scriptResponse.json();
-    console.log(res);
-
-
     if (!scriptResponse.ok) {
       let errorMessage = `Apps Script returned ${scriptResponse.status}`;
       try {
