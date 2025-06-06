@@ -208,107 +208,135 @@ const PushupsCounter = () => {
   return <div className={`w-screen h-screen flex flex-col font-['Arial']`}>
     <div className='w-[40vw] mx-auto my-auto bg-zinc-900 py-10 rounded-xl'>
       <div>
-        <div className='text-4xl text-center mb-4'>Person information</div>
-        <div className='text-2xl w-1/2 mx-auto mb-10'>
-          <div className='flex flex-col gap-2'>
+        <div className='text-3xl md:text-4xl text-center mb-4'>Информация за участника</div>
+        <div className='text-xl md:text-2xl w-[95vw] max-w-xl mx-auto mb-10'>
+          <div className='flex flex-col gap-3'>
             <div>
-              <div>First Name*</div>
+              <div>Име*</div>
               <input
                 type='text'
                 id='firstName'
-                className={`w-full bg-[#0a0a0a] rounded-lg px-2 ${errors.get('firstName') && 'border border-red-600'}`}
+                className={`w-full bg-[#0a0a0a] rounded-lg px-2 py-2 text-lg ${errors.get('firstName') && 'border border-red-600'}`}
                 value={information.firstName != null ? String(information.firstName) : ''}
                 onChange={(e) => updateInformation('firstName', e.target.value)}
+                autoComplete="off"
+                inputMode="text"
               />
-              <div className={`text-sm text-red ${errors.get('firstName') ? 'block' : 'hidden'}`}>First name must not include any numbers or special characters</div>
-            </div>
+              <div className={`text-sm text-red ${errors.get('firstName') ? 'block' : 'hidden'}`}>Името не трябва да съдържа числа или специални символи</div>
             <div>
-              <div>Last Name*</div>
+              <div>Фамилия*</div>
               <input
                 type='text'
                 id='familyName'
-                className={`w-full bg-[#0a0a0a] rounded-lg px-2 ${errors.get('familyName') && 'border border-red-600'}`}
+                className={`w-full bg-[#0a0a0a] rounded-lg px-2 py-2 text-lg ${errors.get('familyName') && 'border border-red-600'}`}
                 value={information.familyName != null ? String(information.familyName) : ''}
                 onChange={(e) => updateInformation('familyName', e.target.value)}
+                autoComplete="off"
+                inputMode="text"
               />
-              <div className={`text-sm text-red ${errors.get('familyName') ? 'block' : 'hidden'}`}>Last name must not include any numbers or special characters</div>
+              <div className={`text-sm text-red ${errors.get('familyName') ? 'block' : 'hidden'}`}>Фамилията не трябва да съдържа числа или специални символи</div>
             </div>
             <div>
-              <div>Age*</div>
+              <div>Възраст*</div>
               <input
-                type='text'
+                type='number'
                 id='age'
-                className={`w-full bg-[#0a0a0a] rounded-lg px-2 ${errors.get('age') && 'border border-red-600'}`}
+                className={`w-full bg-[#0a0a0a] rounded-lg px-2 py-2 text-lg ${errors.get('age') && 'border border-red-600'}`}
                 value={information.age != null ? String(information.age) : ''}
-                onChange={(e) => updateInformation('age', e.target.value)}
+                onChange={(e) => updateInformation('age', Number(e.target.value))}
+                min={0}
+                max={200}
+                inputMode="numeric"
               />
-              <div className={`text-sm text-red ${errors.get('age') ? 'block' : 'hidden'}`}>Age must be a valid number</div>
+              <div className={`text-sm text-red ${errors.get('age') ? 'block' : 'hidden'}`}>Въведете валидна възраст</div>
             </div>
             <div>
-              <div className=''>Gender*</div>
-              <div className='flex'>
-                <label className='mx-auto'><input type='radio' name='gender' value='male' checked={information.gender === 'Male'} className='=bg-[#0a0a0a]' onChange={() => updateInformation('gender', 'Male')} />Male</label>
-                <label className='mx-auto'><input type='radio' name='gender' value='female' checked={information.gender === 'Female'} className='= bg-[#0a0a0a]' onChange={() => updateInformation('gender', 'Female')} />Female</label>
+              <div className=''>Пол*</div>
+              <div className='flex gap-4 justify-center'>
+                <label className='flex items-center gap-1'>
+                  <input type='radio' name='gender' value='male' checked={information.gender === 'Male'} className='accent-blue-600' onChange={() => updateInformation('gender', 'Male')} />
+                  Мъж
+                </label>
+                <label className='flex items-center gap-1'>
+                  <input type='radio' name='gender' value='female' checked={information.gender === 'Female'} className='accent-pink-600' onChange={() => updateInformation('gender', 'Female')} />
+                  Жена
+                </label>
               </div>
             </div>
             <div>
-              <div className=''>Person Standing*</div>
-              <div className='flex'>
-                <label className='mx-auto'><input type='radio' name='type' value='Participant' checked={information.type === 'Participant'} className='=bg-[#0a0a0a]' onChange={() => updateInformation('type', 'Participant')} />Participant</label>
-                <label className='mx-auto'><input type='radio' name='type' value='Civilian' checked={information.type === 'Civilian'} className='= bg-[#0a0a0a]' onChange={() => updateInformation('type', 'Civilian')} />Civilian</label>
-                <label className='mx-auto'><input type='radio' name='type' value='Volunteer' checked={information.type === 'Volunteer'} className='=bg-[#0a0a0a]' onChange={() => updateInformation('type', 'Volunteer')} />Volunteer</label>
+              <div className=''>Статус*</div>
+              <div className='flex gap-2 flex-wrap justify-center'>
+                <label className='flex items-center gap-1'>
+                  <input type='radio' name='type' value='Participant' checked={information.type === 'Participant'} className='accent-green-600' onChange={() => updateInformation('type', 'Participant')} />
+                  Участник
+                </label>
+                <label className='flex items-center gap-1'>
+                  <input type='radio' name='type' value='Civilian' checked={information.type === 'Civilian'} className='accent-yellow-600' onChange={() => updateInformation('type', 'Civilian')} />
+                  Цивилен
+                </label>
+                <label className='flex items-center gap-1'>
+                  <input type='radio' name='type' value='Volunteer' checked={information.type === 'Volunteer'} className='accent-purple-600' onChange={() => updateInformation('type', 'Volunteer')} />
+                  Доброволец
+                </label>
               </div>
             </div>
             <div>
-              <div>Bib Number</div>
+              <div>Състезателен номер</div>
               <input
                 type='text'
                 id='bib'
-                className='w-full bg-[#0a0a0a]'
+                className='w-full bg-[#0a0a0a] rounded-lg px-2 py-2 text-lg'
                 value={information.bib != null ? String(information.bib) : ''}
                 onChange={(e) => updateInformation('bib', e.target.value)}
+                inputMode="numeric"
               />
-              <div className={`text-sm text-red ${errors.get('bib') ? 'block' : 'hidden'}`}>Error</div>
+              <div className={`text-sm text-red ${errors.get('bib') ? 'block' : 'hidden'}`}>Грешка</div>
             </div>
             <div>
-              <div>Category</div>
+              <div>Категория</div>
               <input
                 type='text'
                 id='category'
-                className='w-full bg-[#0a0a0a]'
+                className='w-full bg-[#0a0a0a] rounded-lg px-2 py-2 text-lg'
                 value={information.category != null ? String(information.category) : ''}
                 onChange={(e) => updateInformation('category', e.target.value)}
               />
-              <div className={`text-sm text-red ${errors.get('category') ? 'block' : 'hidden'}`}>Error</div>
+              <div className={`text-sm text-red ${errors.get('category') ? 'block' : 'hidden'}`}>Грешка</div>
             </div>
             <div>
-              <div>Phone Number</div>
+              <div>Телефон</div>
               <input
-                type='text'
+                type='tel'
                 id='phoneNumber'
-                className='w-full bg-[#0a0a0a]'
+                className='w-full bg-[#0a0a0a] rounded-lg px-2 py-2 text-lg'
                 value={information.phoneNumber != null ? String(information.phoneNumber) : ''}
                 onChange={(e) => updateInformation('phoneNumber', e.target.value)}
+                inputMode="tel"
               />
-              <div className={`text-sm text-red ${errors.get('phoneNumber') ? 'block' : 'hidden'}`}>Error</div>
+              <div className={`text-sm text-red ${errors.get('phoneNumber') ? 'block' : 'hidden'}`}>Грешка</div>
             </div>
             <div>
-              <div>Notes</div>
+              <div>Бележки</div>
               <input
                 type='text'
                 id='notes'
-                className='w-full bg-[#0a0a0a]'
+                className='w-full bg-[#0a0a0a] rounded-lg px-2 py-2 text-lg'
                 value={information.notes != null ? String(information.notes) : ''}
                 onChange={(e) => updateInformation('notes', e.target.value)}
               />
-              <div className={`text-sm text-red ${errors.get('notes') ? 'block' : 'hidden'}`}>Error</div>
+              <div className={`text-sm text-red ${errors.get('notes') ? 'block' : 'hidden'}`}>Грешка</div>
             </div>
           </div>
         </div>
         <div>
-          <div className='w-min mx-auto text-2xl hover:cursor-pointer' onClick={() => handleFormSubmission()}>
-            Submit
-          </div>
+          <button
+            className='block w-full md:w-min mx-auto text-xl md:text-2xl bg-blue-700 hover:bg-blue-800 text-white rounded-lg px-8 py-2 mt-4 transition-colors'
+            onClick={() => handleFormSubmission()}
+            type="button"
+          >
+            Изпрати
+          </button>
+        </div>
         </div>
       </div>
     </div>
