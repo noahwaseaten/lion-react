@@ -16,26 +16,41 @@ type userInformation = {
 
 const tempId = "AKfycbz3JqL3VcrgtMX9A750TFwxabg-BxkotQXrh6iv3iUwuyzJKQM_jLJejpPLJwHZknza";
 
-export async function POST(request: Request) {
-  // Step 1: Parse
-  let data: userInformation;
-  try {
-    data = (await request.json()) as userInformation;
-  } catch (err) {
-    console.error("Invalid JSON body:", err);
-    return NextResponse.json({ error: "Invalid JSON body", detail: String(err) }, { status: 400 });
-  }
+export async function POST(
+  req: Request,
+) {
 
-  // Step 2: Forward to Apps Script
+  const { data, count } =
+    (await req.json()) as {
+      data: userInformation;
+      count: number;
+    };
+
   try {
-    const scriptResponse = await fetch(
-      `https://script.google.com/macros/s/${tempId}/exec`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      }
+    const scriptResponse = await fetch(`https://script.google.com/macros/s/${tempId}/exec`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        data: {
+          ...data,
+          count,
+          timestamp: new Date()
+        },
+      }),
+    }
     );
+
+    console.log({
+      data: {
+        ...data,
+        count,
+        timestamp: new Date()
+      }
+    });
+
+    const res = await scriptResponse.json();
+    console.log(res);
+
 
     if (!scriptResponse.ok) {
       let errorMessage = `Apps Script returned ${scriptResponse.status}`;
