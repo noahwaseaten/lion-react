@@ -121,8 +121,15 @@ const PushupsCounter = () => {
   }, [count]);
 
 
-  return <div className='w-screen h-screen flex flex-col'>
-    <div className='w-[40vw] mx-auto my-auto bg-zinc-900 py-10 rounded-xl'>
+  return <div className='w-screen h-screen flex bg-[#f5f5f5]'>
+    <div className='w-[40vw] mx-auto my-auto py-10 rounded-xl'>
+      <img
+        src="/Alphawin_logo.svg"
+        alt="Alphawin Logo"
+        className="w-full h-full object-contain"
+      />
+    </div>
+    <div className='w-[40vw] mx-auto my-auto text-[#222222] py-10 rounded-xl'>
       {!submitted
         ? <div>
           {/* <div className='text-4xl text-center mb-4'>Person information</div> */}
@@ -133,7 +140,7 @@ const PushupsCounter = () => {
                 <input
                   type='text'
                   id='firstName'
-                  className='w-full bg-[#0a0a0a] rounded-lg px-2'
+                  className='w-full border border-black rounded-lg px-2'
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
@@ -141,10 +148,10 @@ const PushupsCounter = () => {
             </div>
           </div>
         </div>
-        : <div className='text-center text-2xl flex flex-col gap-2 h-[50vh]'>
-          <div className='mt-auto text-4xl'>{name.toUpperCase()}</div>
-          <div className='text-6xl'>{countRef.current}</div>
-          <div className='mb-auto select-none'>push-ups</div>
+        : <div className='text-center flex flex-col gap-2 h-[50vh]'>
+          <div className='mt-auto text-8xl'>{name.toUpperCase()}</div>
+          <div className='text-[12rem]'>{countRef.current}</div>
+          <div className='mb-auto select-none text-6xl'>push-ups</div>
         </div>
       }
     </div>
