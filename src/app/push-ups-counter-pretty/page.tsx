@@ -131,28 +131,44 @@ const PushupsCounter = () => {
     </div>
     <div className='w-[40vw] mx-auto my-auto text-[#222222] py-10 rounded-xl'>
       {!submitted
-        ? <div>
-          {/* <div className='text-4xl text-center mb-4'>Person information</div> */}
-          <div className='text-2xl w-1/2 mx-auto'>
-            <div className='flex flex-col gap-2'>
-              <div>
-                <div className='text-center'>ENTER NAME</div>
-                <input
-                  type='text'
-                  id='firstName'
-                  className='w-full border border-black rounded-lg px-2'
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </div>
-            </div>
+      ? <div>
+        {/* <div className='text-4xl text-center mb-4'>Person information</div> */}
+        <div className='text-2xl w-1/2 mx-auto'>
+        <div className='flex flex-col gap-2'>
+          <div>
+          <div className='text-center mb-5 text-4xl'>Кой ще се напомпа сега?</div>
+          <input
+            type='text'
+            id='firstName'
+            className='w-full border border-black rounded-lg px-2'
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
           </div>
         </div>
-        : <div className='text-center flex flex-col gap-2 h-[50vh]'>
-          <div className='mt-auto text-8xl'>{name.toUpperCase()}</div>
-          <div className='text-[12rem]'>{countRef.current}</div>
-          <div className='mb-auto select-none text-6xl'>push-ups</div>
         </div>
+      </div>
+      : (() => {
+        // Split the name into first and second part (by first space)
+        const [firstName, ...rest] = name.trim().split(' ');
+        const secondName = rest.join(' ');
+        return (
+          <div className="flex flex-col items-center justify-center h-[50vh] text-center gap-2">
+          <div className="mt-auto w-full max-w-full flex flex-col items-center justify-center">
+            <span className="text-8xl break-words px-2 truncate max-w-[90vw] inline-block">{firstName.toUpperCase()}</span>
+            {secondName && (
+            <span className="text-5xl break-words px-2 truncate max-w-[90vw] inline-block">{secondName.toUpperCase()}</span>
+            )}
+          </div>
+            <div className="text-[12rem] flex justify-center w-full">
+            <span className="inline-block">{countRef.current}</span>
+          </div>
+          <div className="mb-auto select-none text-6xl flex justify-center w-full">
+            <span className="inline-block">Лицеви</span>
+          </div>
+          </div>
+        );
+        })()
       }
     </div>
   </div>
