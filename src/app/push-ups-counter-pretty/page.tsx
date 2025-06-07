@@ -185,6 +185,7 @@ const PushupsCounter = () => {
                   className='w-full h-auto border border-black rounded-lg px-2 overflow-hidden'
                   value={name}
                   onChange={(e) => setName(e.target.value)}
+                  autoComplete='off'
                 />
               </div>
             </div>
@@ -213,10 +214,10 @@ const PushupsCounter = () => {
 
       <div className={`absolute z-10 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center h-[50vh] w-full text-center gap-2 transition-opacity duration-300 ${isTopFiveView ? 'opacity-100 delay-300' : 'opacity-0'}`}>
 
-        <div className='text-8xl'>
+        <div className='text-8xl mt-1'>
           Топ 5
         </div>
-        {!!topFive.length && topFive.map((el, i) => <div key={i} className={`text-4xl transition-opacity duration-300 ${!topFiveFetchAnimation ? 'opacity-100' : 'opacity-0'}`}>
+        {!!topFive.length && topFive.map((el, i) => <div key={i} className={`text-4xl mt-2 transition-opacity duration-300 ${!topFiveFetchAnimation ? 'opacity-100' : 'opacity-0'}`}>
           {i + 1}. {el.firstName} {el.lastName ? el.lastName : ''} - {el.count} лицеви
         </div>)}
       </div>
