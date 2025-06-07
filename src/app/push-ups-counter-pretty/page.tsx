@@ -212,7 +212,14 @@ const PushupsCounter = () => {
 
         </div>}
 
-      <div className={`absolute z-10 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center h-[50vh] w-full text-center gap-2 transition-opacity duration-300 ${isTopFiveView ? 'opacity-100 delay-300' : 'opacity-0'}`}>
+      <div
+        className={`
+          absolute z-10 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2
+          flex flex-col items-center justify-center h-[50vh] w-full text-center gap-2
+          transition-all duration-700
+          ${isTopFiveView ? 'opacity-100 scale-100 blur-0 pointer-events-auto' : 'opacity-0 scale-95 blur-sm pointer-events-none'}
+        `}
+      >
 
         <div className='text-8xl mt-1'>
           Топ 5
