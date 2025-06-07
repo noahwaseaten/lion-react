@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import NumberFlow from '@number-flow/react';
+import NumberFlow, { continuous } from '@number-flow/react'
 
 const PushupsCounter = () => {
 
@@ -165,11 +165,30 @@ const PushupsCounter = () => {
 
   return <div className='w-screen h-screen flex bg-[#f5f5f5]'>
     <div className='w-[40vw] mx-auto my-auto py-10 rounded-xl'>
-      <img
-        src="/Alphawin_logo.svg"
-        alt="Alphawin Logo"
-        className="w-full h-full object-contain"
-      />
+      {(() => {
+      const [currentLogo, setCurrentLogo] = useState(0);
+      
+      useEffect(() => {
+        const interval = setInterval(() => {
+        setCurrentLogo(prev => prev === 0 ? 1 : 0);
+        }, 10000);
+
+        return () => clearInterval(interval);
+      }, []);
+
+      const logos = [
+        "/Alphawin_logo.svg",
+        "/lionheart.svg"
+      ];
+
+      return (
+        <img
+        src={logos[currentLogo]}
+        alt={currentLogo === 0 ? "Alphawin Logo" : "Lion Heart Logo"}
+        className="w-full h-full object-contain transition-opacity duration-500"
+        />
+      );
+      })()}
     </div>
     <div className='relative z-10 w-[50vw] mr-0 text-[#222222] py-10 rounded-xl select-none'>
       {!submitted
@@ -219,36 +238,51 @@ const PushupsCounter = () => {
           transition-all duration-700
           ${isTopFiveView ? 'opacity-100 scale-100 blur-0 pointer-events-auto' : 'opacity-0 scale-95 blur-sm pointer-events-none'}
         `}
+
       >
 
         <div className='text-8xl mt-1'>
           Топ 5
         </div>
         <div className="relative w-full flex flex-col items-center">
-          <div className="w-full flex flex-col items-center transition-all duration-500"
+            <div className="w-full flex flex-col items-center transition-all duration-500"
             style={{
               minHeight: `${topFive.length * 3.5}rem`, // reserve space for smooth height changes
               transitionProperty: 'min-height'
             }}>
-            {topFive.map((el, i) => (
+            {topFive.map((el, i) => {
+              // Assign 'J' as the key for NumberFlow
+              return (
               <div
-          key={el.firstName + (el.lastName ?? '')}
-          className={`
-            text-4xl mt-2
-            transition-all duration-500
-            ${topFiveFetchAnimation
-              ? 'opacity-0 translate-x-10 blur-sm'
-              : 'opacity-100 translate-x-0 blur-0'
-            }
-          `}
-          style={{
-            transitionDelay: `${i * 80}ms`
-          }}
+                key={el.firstName + (el.lastName ?? '')}
+                className={`
+                text-4xl mt-2
+                transition-all duration-500
+                ${topFiveFetchAnimation
+                ? 'opacity-0 translate-x-10 blur-sm'
+                : 'opacity-100 translate-x-0 blur-0'
+                }
+                `}
+                style={{
+                transitionDelay: `${i * 80}ms`
+                }}
               >
-          {i + 1}. {el.firstName} {el.lastName ? el.lastName : ''} - {el.count} лицеви
+                {i + 1}. {el.firstName} {el.lastName ? el.lastName : ''} -{' '}
+                <NumberFlow
+                value={topFiveFetchAnimation ? 0 : el.count}
+                locales="en-US"
+                format={{ useGrouping: false }}
+                animated={topFiveFetchAnimation === false}
+                transformTiming={{ duration: 1000, easing: 'ease-in' }}
+                plugins={[continuous]}
+                className="inline-block"
+                willChange
+                />{' '}
+                лицеви
               </div>
-            ))}
-          </div>
+              );
+            })}
+            </div>
         </div>
       </div>
 
