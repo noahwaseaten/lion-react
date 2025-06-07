@@ -151,34 +151,27 @@ const PushupsCounter = () => {
             </div>
           </div>
         </div>
-        : (() => {
-          // Split the name into first and second part (by first space)
-          const [firstName, ...rest] = name.trim().split(' ');
-          const secondName = rest.join(' ');
-          return (
-            <div className="flex flex-col items-center justify-center h-[50vh] text-center gap-2">
-              <div className="mt-auto w-full max-w-full flex flex-col items-center justify-center">
-                <span className="text-8xl break-words px-2 truncate max-w-[90vw] inline-block">{firstName.toUpperCase()}</span>
-                {secondName && (
-                  <span className="text-5xl break-words px-2 truncate max-w-[90vw] inline-block">{secondName.toUpperCase()}</span>
-                )}
-              </div>
-              <div className="text-[12rem] flex justify-center w-full">
-                <NumberFlow
-                  value={countRef.current}
-                  locales="en-US"
-                  format={{ useGrouping: false }}
-                  animated={true}
-                  className="pointer-events-none"
-                  willChange
-                />
-              </div>
-              <div className="mb-auto select-none text-6xl flex justify-center w-full">
-                <span className="inline-block">Лицеви</span>
-              </div>
-            </div>
-          );
-        })()
+        : <div className="flex flex-col items-center justify-center h-[50vh] text-center gap-2">
+          <div className="mt-auto w-full max-w-full flex flex-col items-center justify-center">
+            <span className="text-8xl break-words px-2 truncate max-w-[90vw] inline-block">{name.split(' ')[0].toUpperCase()}</span>
+            <span className="text-5xl break-words px-2 truncate max-w-[90vw] inline-block">{name.split(' ').slice(1).join('').toUpperCase()}</span>
+          </div>
+          <div className="text-[12rem] flex justify-center w-full">
+            <NumberFlow
+              value={countRef.current}
+              locales="en-US"
+              format={{ useGrouping: false }}
+              animated={true}
+              className="pointer-events-none"
+              willChange
+            />
+          </div>
+          <div className="mb-auto select-none text-6xl flex justify-center w-full">
+            <span className="inline-block">Лицеви</span>
+          </div>
+        </div>
+
+
       }
 
     </div>
