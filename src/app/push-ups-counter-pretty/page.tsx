@@ -11,6 +11,9 @@ const PushupsCounter = () => {
   const submittedRef = useRef(submitted);
   const countRef = useRef(count);
 
+  const [isTopTenView, setIsTopTenView] = useState(false);
+  const isTopTenViewRef = useRef(isTopTenView);
+
   const sendToGoogleSheet = async () => {
     console.log({
       name,
@@ -100,6 +103,12 @@ const PushupsCounter = () => {
             });
           }
           break;
+        case 'ArrowUp':
+        case 'ArrowDown':
+        case 'ArrowLeft':
+        case 'ArrowRight':
+          setIsTopTenView(!isTopTenViewRef.current);
+          break;
       }
     };
 
@@ -123,6 +132,9 @@ const PushupsCounter = () => {
     countRef.current = count;
   }, [count]);
 
+  useEffect(() => {
+    isTopTenViewRef.current = isTopTenView;
+  }, [isTopTenView]);
 
   return <div className='w-screen h-screen flex bg-[#f5f5f5]'>
     <div className='w-[40vw] mx-auto my-auto py-10 rounded-xl'>
@@ -133,7 +145,7 @@ const PushupsCounter = () => {
       />
     </div>
     <div className='w-[40vw] mx-auto my-auto text-[#222222] py-10 rounded-xl'>
-      {!submitted
+      {!isTopTenView ? !submitted
         ? <div>
           {/* <div className='text-4xl text-center mb-4'>Person information</div> */}
           <div className='text-2xl w-1/2 mx-auto'>
@@ -169,9 +181,11 @@ const PushupsCounter = () => {
           <div className="mb-auto select-none text-6xl flex justify-center w-full">
             <span className="inline-block">Лицеви</span>
           </div>
+
         </div>
-
-
+        : <div className="flex flex-col items-center justify-center h-[50vh] text-center gap-2">
+          Top 10
+        </div>
       }
 
     </div>
