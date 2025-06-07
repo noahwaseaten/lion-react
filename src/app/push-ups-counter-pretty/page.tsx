@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import NumberFlow, { continuous } from '@number-flow/react';
+import NumberFlow from '@number-flow/react';
 import Image from 'next/image';
 
 const LogoSwitcher = () => {
@@ -170,13 +170,13 @@ const PushupsCounter = () => {
   }, []);
   useEffect(() => {
     getFromGoogleSheet();
-  }, [getFromGoogleSheet]);
+  }, []);
 
   useEffect(() => {
     if (isTopFiveView) {
       getFromGoogleSheet();
     }
-  }, [isTopFiveView, getFromGoogleSheet]);
+  }, [isTopFiveView]);
 
   useEffect(() => {
     submittedRef.current = submitted;
