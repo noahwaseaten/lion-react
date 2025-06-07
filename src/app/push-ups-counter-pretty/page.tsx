@@ -5,7 +5,7 @@ import Image from 'next/image';
 
 const LogoSwitcher = () => {
   const [currentLogo, setCurrentLogo] = useState(0);
-  
+
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentLogo(prev => prev === 0 ? 1 : 0);
@@ -195,8 +195,8 @@ const PushupsCounter = () => {
   }, [isTopFiveView]);
 
   return <div className='w-screen h-screen flex bg-[#f5f5f5]'>    <div className='w-[40vw] mx-auto my-auto py-10 rounded-xl'>
-      <LogoSwitcher />
-    </div>
+    <LogoSwitcher />
+  </div>
     <div className='relative z-10 w-[50vw] mr-0 text-[#222222] py-10 rounded-xl select-none'>
       {!submitted
         ? <div>
@@ -252,7 +252,7 @@ const PushupsCounter = () => {
           Топ 5
         </div>
         <div className="relative w-full flex flex-col items-center">
-            <div className="w-full flex flex-col items-center transition-all duration-500"
+          <div className="w-full flex flex-col items-center transition-all duration-500"
             style={{
               minHeight: `${topFive.length * 3.5}rem`, // reserve space for smooth height changes
               transitionProperty: 'min-height'
@@ -260,36 +260,25 @@ const PushupsCounter = () => {
             {topFive.map((el, i) => {
               // Assign 'J' as the key for NumberFlow
               return (
-              <div
-                key={el.firstName + (el.lastName ?? '')}
-                className={`
+                <div
+                  key={el.firstName + (el.lastName ?? '')}
+                  className={`
                 text-4xl mt-2
                 transition-all duration-500
                 ${topFiveFetchAnimation
-                ? 'opacity-0 translate-x-10 blur-sm'
-                : 'opacity-100 translate-x-0 blur-0'
-                }
+                      ? 'opacity-0 translate-x-10 blur-sm'
+                      : 'opacity-100 translate-x-0 blur-0'
+                    }
                 `}
-                style={{
-                transitionDelay: `${i * 80}ms`
-                }}
-              >
-                {i + 1}. {el.firstName} {el.lastName ? el.lastName : ''} -{' '}
-                <NumberFlow
-                value={topFiveFetchAnimation ? 0 : el.count}
-                locales="en-US"
-                format={{ useGrouping: false }}
-                animated={topFiveFetchAnimation === false}
-                transformTiming={{ duration: 1000, easing: 'ease-in' }}
-                plugins={[continuous]}
-                className="inline-block"
-                willChange
-                />{' '}
-                лицеви
-              </div>
+                  style={{
+                    transitionDelay: `${i * 80}ms`
+                  }}
+                >
+                  {i + 1}. {el.firstName} {el.lastName ? el.lastName : ''} - {el.count} лицеви
+                </div>
               );
             })}
-            </div>
+          </div>
         </div>
       </div>
 
