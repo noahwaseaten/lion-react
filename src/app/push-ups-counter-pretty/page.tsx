@@ -20,12 +20,13 @@ const LogoSwitcher = () => {
   ];
 
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full" style={{ height: '300px' }}>
       <Image
         src={logos[currentLogo]}
         alt={currentLogo === 0 ? "Alphawin Logo" : "Lion Heart Logo"}
         className="transition-opacity duration-500"
         fill
+        sizes="(max-width: 768px) 100vw, 40vw"
         style={{ objectFit: 'contain' }}
         priority
       />
