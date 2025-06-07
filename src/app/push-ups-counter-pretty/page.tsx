@@ -11,10 +11,10 @@ const PushupsCounter = () => {
   const submittedRef = useRef(submitted);
   const countRef = useRef(count);
 
-  const [isTopTenView, setIsTopTenView] = useState(false);
-  const isTopTenViewRef = useRef(isTopTenView);
+  const [isTopFiveView, setIsTopFiveView] = useState(false);
+  const isTopFiveViewRef = useRef(isTopFiveView);
 
-  const [topTen, setTopTen] = useState({});
+  const [topFive, setTopFive] = useState([] as { firstName: string, lastName?: string, count: number }[]);
 
   const sendToGoogleSheet = async () => {
     try {
@@ -24,14 +24,14 @@ const PushupsCounter = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: nameRef.current,
+          firstName: nameRef.current.split(' ')[0],
+          familyName: nameRef.current.split(' ').slice(1).join(''),
           count: countRef.current,
         }),
         cache: "no-store"
       });
 
       const contentType = res.headers.get('content-type');
-      console.log(contentType);
 
       if (!res.ok) {
         // If it's JSON, try to parse the error
@@ -65,6 +65,7 @@ const PushupsCounter = () => {
       const res = await fetch('/api/getInfoFromGoogleSheet');
       const data = await res.json();
       console.log('Fetched sheet data:', data);
+      handleGoogleSheetsInfo(data);
       return data;
     } catch (err) {
       console.error('Error fetching from internal API:', err);
@@ -73,9 +74,7 @@ const PushupsCounter = () => {
   };
 
   const handleGoogleSheetsInfo = (info: { firstName: string, lastName?: string, count: number }[]) => {
-    const countRecordsOnly = info.filter(a => a.count).sort(a => a.count);
-
-    console.log(countRecordsOnly);
+    setTopFive(info.filter(a => a.count).sort((a, b) => b.count - a.count).slice(0, 5));
   }
 
   useEffect(() => {
@@ -88,7 +87,6 @@ const PushupsCounter = () => {
           break;
         case 'Enter':
           if (submittedRef.current) {
-            console.log('here');
             (async () => await sendToGoogleSheet())();
             setName('');
             setCount(0);
@@ -97,7 +95,6 @@ const PushupsCounter = () => {
             if (input) setName(input.value);
           }
           setSubmitted(prev => !prev);
-          console.log('here2');
           break;
         case ' ':
           if (submittedRef.current) {
@@ -123,7 +120,7 @@ const PushupsCounter = () => {
         case 'ArrowDown':
         case 'ArrowLeft':
         case 'ArrowRight':
-          setIsTopTenView(!isTopTenViewRef.current);
+          setIsTopFiveView(!isTopFiveViewRef.current);
           break;
       }
     };
@@ -153,8 +150,8 @@ const PushupsCounter = () => {
   }, [count]);
 
   useEffect(() => {
-    isTopTenViewRef.current = isTopTenView;
-  }, [isTopTenView]);
+    isTopFiveViewRef.current = isTopFiveView;
+  }, [isTopFiveView]);
 
   return <div className='w-screen h-screen flex bg-[#f5f5f5]'>
     <div className='w-[40vw] mx-auto my-auto py-10 rounded-xl'>
@@ -164,18 +161,18 @@ const PushupsCounter = () => {
         className="w-full h-full object-contain"
       />
     </div>
-    <div className='relative w-[40vw] mx-auto my-auto text-[#222222] py-10 rounded-xl'>
+    <div className='relative z-10 w-[50vw] mr-0 text-[#222222] py-10 rounded-xl select-none'>
       {!submitted
         ? <div>
           {/* <div className='text-4xl text-center mb-4'>Person information</div> */}
-          <div className={`absolute text-2xl w-1/2 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-300 ${!isTopTenView ? 'opacity-100 delay-300' : 'opacity-0'}`}>
+          <div className={`absolute z-20 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-1/2 transition-opacity duration-300 ${!isTopFiveView ? 'opacity-100 delay-300' : 'opacity-0'} text-2xl mx-auto`}>
             <div className='flex flex-col gap-2'>
               <div>
                 <div className='text-center mb-5 text-3xl'>Кой ще се напомпа сега?</div>
                 <input
                   type='text'
                   id='firstName'
-                  className='w-full border border-black rounded-lg px-2'
+                  className='w-full h-auto border border-black rounded-lg px-2 overflow-hidden'
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
@@ -183,7 +180,7 @@ const PushupsCounter = () => {
             </div>
           </div>
         </div>
-        : <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-300 ${!isTopTenView ? 'opacity-100 delay-300' : 'opacity-0'} flex flex-col items-center justify-center h-[50vh] text-center gap-2`}>
+        : <div className={`absolute z-20 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-1/2 transition-opacity duration-300 ${!isTopFiveView ? 'opacity-100 delay-300' : 'opacity-0'} flex flex-col items-center justify-center h-[50vh] text-center gap-2`}>
           <div className="mt-auto w-full max-w-full flex flex-col items-center justify-center">
             <span className="text-8xl break-words px-2 truncate max-w-[90vw] inline-block">{name.split(' ')[0].toUpperCase()}</span>
             <span className="text-5xl break-words px-2 truncate max-w-[90vw] inline-block">{name.split(' ').slice(1).join('').toUpperCase()}</span>
@@ -204,8 +201,14 @@ const PushupsCounter = () => {
 
         </div>}
 
-      <div className={`flex flex-col items-center justify-center h-[50vh] text-center gap-2 transition-all duration-300 ${isTopTenView ? 'opacity-100 delay-300' : 'opacity-0'}`}>
-        Top 10
+      <div className={`absolute z-10 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center h-[50vh] w-full text-center gap-2 transition-opacity duration-300 ${isTopFiveView ? 'opacity-100 delay-300' : 'opacity-0'}`}>
+        
+        <div className='text-8xl'>
+          Топ 5
+        </div>
+        {!!topFive.length && topFive.map((el, i) => <div key={i} className='text-4xl'>
+          {i + 1}. {el.firstName} - {el.count} лицеви
+        </div>)}
       </div>
 
     </div>

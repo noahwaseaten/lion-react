@@ -7,10 +7,11 @@ export async function POST(
   req: Request,
 ) {
 
-  const { count, name } =
+  const { firstName, familyName, count } =
     (await req.json()) as {
+      firstName: string;
+      familyName: string;
       count: number;
-      name: string; // legacy used data: userInformation
     };
 
   try {
@@ -19,7 +20,8 @@ export async function POST(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         data: {
-          firstName: name,
+          firstName,
+          familyName,
           count,
           timestamp: new Date()
         },
