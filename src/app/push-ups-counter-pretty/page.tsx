@@ -14,11 +14,9 @@ const PushupsCounter = () => {
   const [isTopTenView, setIsTopTenView] = useState(false);
   const isTopTenViewRef = useRef(isTopTenView);
 
+  const [topTen, setTopTen] = useState({});
+
   const sendToGoogleSheet = async () => {
-    console.log({
-      name,
-      count
-    });
     try {
       const res = await fetch('/api/sendToGoogleSheet', {
         method: 'POST',
@@ -61,6 +59,24 @@ const PushupsCounter = () => {
       }
     }
   };
+
+  const getFromGoogleSheet = async () => {
+    try {
+      const res = await fetch('/api/getInfoFromGoogleSheet');
+      const data = await res.json();
+      console.log('Fetched sheet data:', data);
+      return data;
+    } catch (err) {
+      console.error('Error fetching from internal API:', err);
+      return null;
+    }
+  };
+
+  const handleGoogleSheetsInfo = (info: { firstName: string, lastName?: string, count: number }[]) => {
+    const countRecordsOnly = info.filter(a => a.count).sort(a => a.count);
+
+    console.log(countRecordsOnly);
+  }
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -120,6 +136,10 @@ const PushupsCounter = () => {
   }, []);
 
   useEffect(() => {
+    getFromGoogleSheet();
+  }, []);
+
+  useEffect(() => {
     submittedRef.current = submitted;
   }, [submitted]);
 
@@ -144,11 +164,11 @@ const PushupsCounter = () => {
         className="w-full h-full object-contain"
       />
     </div>
-    <div className='w-[40vw] mx-auto my-auto text-[#222222] py-10 rounded-xl'>
-      {!isTopTenView ? !submitted
+    <div className='relative w-[40vw] mx-auto my-auto text-[#222222] py-10 rounded-xl'>
+      {!submitted
         ? <div>
           {/* <div className='text-4xl text-center mb-4'>Person information</div> */}
-          <div className='text-2xl w-1/2 mx-auto'>
+          <div className={`absolute text-2xl w-1/2 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-300 ${!isTopTenView ? 'opacity-100 delay-300' : 'opacity-0'}`}>
             <div className='flex flex-col gap-2'>
               <div>
                 <div className='text-center mb-5 text-3xl'>Кой ще се напомпа сега?</div>
@@ -163,7 +183,7 @@ const PushupsCounter = () => {
             </div>
           </div>
         </div>
-        : <div className="flex flex-col items-center justify-center h-[50vh] text-center gap-2">
+        : <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-300 ${!isTopTenView ? 'opacity-100 delay-300' : 'opacity-0'} flex flex-col items-center justify-center h-[50vh] text-center gap-2`}>
           <div className="mt-auto w-full max-w-full flex flex-col items-center justify-center">
             <span className="text-8xl break-words px-2 truncate max-w-[90vw] inline-block">{name.split(' ')[0].toUpperCase()}</span>
             <span className="text-5xl break-words px-2 truncate max-w-[90vw] inline-block">{name.split(' ').slice(1).join('').toUpperCase()}</span>
@@ -182,11 +202,11 @@ const PushupsCounter = () => {
             <span className="inline-block">Лицеви</span>
           </div>
 
-        </div>
-        : <div className="flex flex-col items-center justify-center h-[50vh] text-center gap-2">
-          Top 10
-        </div>
-      }
+        </div>}
+
+      <div className={`flex flex-col items-center justify-center h-[50vh] text-center gap-2 transition-all duration-300 ${isTopTenView ? 'opacity-100 delay-300' : 'opacity-0'}`}>
+        Top 10
+      </div>
 
     </div>
   </div>
