@@ -15,6 +15,7 @@ const PushupsCounter = () => {
   const isTopFiveViewRef = useRef(isTopFiveView);
 
   const [topFive, setTopFive] = useState([] as { firstName: string, lastName?: string, count: number }[]);
+  const [topFiveFetchAnimation, setTopFiveFetchAnimation] = useState(false);
 
   const sendToGoogleSheet = async () => {
     try {
@@ -74,8 +75,12 @@ const PushupsCounter = () => {
   };
 
   const handleGoogleSheetsInfo = (info: { firstName: string, lastName?: string, count: number }[]) => {
-    setTopFive(info.filter(a => a.count).sort((a, b) => b.count - a.count).slice(0, 5));
-  }
+    setTopFiveFetchAnimation(true);
+    setTimeout(() => {
+      setTopFive(info.filter(a => a.count).sort((a, b) => b.count - a.count).slice(0, 5));
+      setTopFiveFetchAnimation(false);
+    }, 300);
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -137,9 +142,14 @@ const PushupsCounter = () => {
   }, []);
 
   useEffect(() => {
+    if (isTopFiveView) {
+      getFromGoogleSheet();
+    }
+  }, [isTopFiveView]);
+
+  useEffect(() => {
     submittedRef.current = submitted;
   }, [submitted]);
-
 
   useEffect(() => {
     nameRef.current = name;
@@ -202,12 +212,12 @@ const PushupsCounter = () => {
         </div>}
 
       <div className={`absolute z-10 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center h-[50vh] w-full text-center gap-2 transition-opacity duration-300 ${isTopFiveView ? 'opacity-100 delay-300' : 'opacity-0'}`}>
-        
+
         <div className='text-8xl'>
           Топ 5
         </div>
-        {!!topFive.length && topFive.map((el, i) => <div key={i} className='text-4xl'>
-          {i + 1}. {el.firstName} - {el.count} лицеви
+        {!!topFive.length && topFive.map((el, i) => <div key={i} className={`text-4xl transition-opacity duration-300 ${!topFiveFetchAnimation ? 'opacity-100' : 'opacity-0'}`}>
+          {i + 1}. {el.firstName} {el.lastName ? el.lastName : ''} - {el.count} лицеви
         </div>)}
       </div>
 
