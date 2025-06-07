@@ -1,8 +1,7 @@
 // src/app/api/sendToGoogleSheet/route.ts
 
+import { id } from "@/app/constants/sheet";
 import { NextResponse } from "next/server";
-
-const tempId = "AKfycbxz0YgdPDID2VrAX42H3D9_UlrI06KCfAj4t2wZr2MuIQSlANlHF6YuQ_xAfmwFmjtc";
 
 export async function POST(
   req: Request,
@@ -15,7 +14,7 @@ export async function POST(
     };
 
   try {
-    const scriptResponse = await fetch(`https://script.google.com/macros/s/${tempId}/exec`, {
+    const scriptResponse = await fetch(`https://script.google.com/macros/s/${id}/exec`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
