@@ -1,6 +1,37 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import NumberFlow, { continuous } from '@number-flow/react'
+import NumberFlow, { continuous } from '@number-flow/react';
+import Image from 'next/image';
+
+const LogoSwitcher = () => {
+  const [currentLogo, setCurrentLogo] = useState(0);
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentLogo(prev => prev === 0 ? 1 : 0);
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const logos = [
+    "/Alphawin_logo.svg",
+    "/lionheart.svg"
+  ];
+
+  return (
+    <div className="relative w-full h-full">
+      <Image
+        src={logos[currentLogo]}
+        alt={currentLogo === 0 ? "Alphawin Logo" : "Lion Heart Logo"}
+        className="transition-opacity duration-500"
+        fill
+        style={{ objectFit: 'contain' }}
+        priority
+      />
+    </div>
+  );
+};
 
 const PushupsCounter = () => {
 
@@ -136,16 +167,15 @@ const PushupsCounter = () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
-
   useEffect(() => {
     getFromGoogleSheet();
-  }, []);
+  }, [getFromGoogleSheet]);
 
   useEffect(() => {
     if (isTopFiveView) {
       getFromGoogleSheet();
     }
-  }, [isTopFiveView]);
+  }, [isTopFiveView, getFromGoogleSheet]);
 
   useEffect(() => {
     submittedRef.current = submitted;
@@ -163,32 +193,8 @@ const PushupsCounter = () => {
     isTopFiveViewRef.current = isTopFiveView;
   }, [isTopFiveView]);
 
-  return <div className='w-screen h-screen flex bg-[#f5f5f5]'>
-    <div className='w-[40vw] mx-auto my-auto py-10 rounded-xl'>
-      {(() => {
-      const [currentLogo, setCurrentLogo] = useState(0);
-      
-      useEffect(() => {
-        const interval = setInterval(() => {
-        setCurrentLogo(prev => prev === 0 ? 1 : 0);
-        }, 10000);
-
-        return () => clearInterval(interval);
-      }, []);
-
-      const logos = [
-        "/Alphawin_logo.svg",
-        "/lionheart.svg"
-      ];
-
-      return (
-        <img
-        src={logos[currentLogo]}
-        alt={currentLogo === 0 ? "Alphawin Logo" : "Lion Heart Logo"}
-        className="w-full h-full object-contain transition-opacity duration-500"
-        />
-      );
-      })()}
+  return <div className='w-screen h-screen flex bg-[#f5f5f5]'>    <div className='w-[40vw] mx-auto my-auto py-10 rounded-xl'>
+      <LogoSwitcher />
     </div>
     <div className='relative z-10 w-[50vw] mr-0 text-[#222222] py-10 rounded-xl select-none'>
       {!submitted
