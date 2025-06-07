@@ -217,9 +217,32 @@ const PushupsCounter = () => {
         <div className='text-8xl mt-1'>
           Топ 5
         </div>
-        {!!topFive.length && topFive.map((el, i) => <div key={i} className={`text-4xl mt-2 transition-opacity duration-300 ${!topFiveFetchAnimation ? 'opacity-100' : 'opacity-0'}`}>
+        <div className="relative w-full flex flex-col items-center">
+          <div className="w-full flex flex-col items-center transition-all duration-500"
+            style={{
+              minHeight: `${topFive.length * 3.5}rem`, // reserve space for smooth height changes
+              transitionProperty: 'min-height'
+            }}>
+            {topFive.map((el, i) => (
+              <div
+          key={el.firstName + (el.lastName ?? '')}
+          className={`
+            text-4xl mt-2
+            transition-all duration-500
+            ${topFiveFetchAnimation
+              ? 'opacity-0 translate-x-10 blur-sm'
+              : 'opacity-100 translate-x-0 blur-0'
+            }
+          `}
+          style={{
+            transitionDelay: `${i * 80}ms`
+          }}
+              >
           {i + 1}. {el.firstName} {el.lastName ? el.lastName : ''} - {el.count} лицеви
-        </div>)}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
     </div>
