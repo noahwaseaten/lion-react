@@ -28,6 +28,14 @@ interface NormalizedRow {
   count: number;
   gender?: Gender;
 }
+// Apps Script error response shape
+interface ScriptError {
+  status: "ERROR";
+  message?: string;
+  [k: string]: unknown;
+}
+const isScriptError = (val: unknown): val is ScriptError =>
+  typeof val === "object" && val !== null && (val as Record<string, unknown>).status === "ERROR";
 
 // Stable identity signature, independent of count
 const toSignature = (p: { firstName?: string; lastName?: string; gender?: Gender }) =>
@@ -378,20 +386,24 @@ const PushupsCounter = () => {
       const res = await fetch(`/api/getInfoFromGoogleSheet${force ? "?nocache=true" : ""}`, {
         cache: "no-store",
       });
-      let data = (await res.json()) as unknown;
-      if (data && typeof data === "object" && (data as any).status === "ERROR") {
-        console.error("Apps Script error:", (data as any).message);
+      const incoming = (await res.json()) as unknown;
+
+      if (isScriptError(incoming)) {
+        console.error("Apps Script error:", incoming.message);
         return null;
       }
-      if (!Array.isArray(data)) {
-        if (typeof data === "object" && data !== null && Object.keys(data as object).length === 0) data = [];
-        else {
-          console.error("Unexpected data format:", data);
-          return null;
-        }
+
+      let rowsRaw: RowApi[];
+      if (Array.isArray(incoming)) {
+        rowsRaw = incoming as RowApi[];
+      } else if (typeof incoming === "object" && incoming !== null && Object.keys(incoming as Record<string, unknown>).length === 0) {
+        rowsRaw = [];
+      } else {
+        console.error("Unexpected data format:", incoming);
+        return null;
       }
-      const rows = (data as RowApi[]).map((r) => r) as RowApi[];
-      const normalized = normalizeRows(rows);
+
+      const normalized = normalizeRows(rowsRaw);
       setAllRows(normalized);
       allRowsRef.current = normalized;
       try { sessionStorage.setItem(STORAGE_KEY_ROWS, JSON.stringify(normalized)); } catch {}
