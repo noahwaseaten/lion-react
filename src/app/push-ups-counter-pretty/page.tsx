@@ -12,7 +12,7 @@ gsap.registerPlugin(Flip);
 const toSignature = (p: { firstName?: string; lastName?: string; gender?: "Men" | "Women" }) =>
   `${(p.firstName || "").trim().toLowerCase()}|${(p.lastName || "").trim().toLowerCase()}|${(p.gender || "")}`;
 
-const ROW_HEIGHT_REM = 3.5; // Keep row height consistent to avoid Flip snap
+const ROW_HEIGHT_REM = 4.5; // Slightly taller rows for two-line name layout, keeps Flip stable
 const STORAGE_KEY_ROWS = "pushups:rows:v1";
 
 const LogoSwitcher = () => {
@@ -26,7 +26,7 @@ const LogoSwitcher = () => {
   const logos = ["/Alphawin_logo.svg", "/lionheart.svg"];
 
   return (
-    <div className="relative w-full" style={{ height: 300 }}>
+    <div className="relative w-full" style={{ height: 600 }}>
       <Image
         src={logos[currentLogo]}
         alt={currentLogo === 0 ? "Alphawin Logo" : "Lion Heart Logo"}
@@ -200,7 +200,6 @@ const PushupsCounter = () => {
     const itemSelector = '[data-row="true"]';
     const prevItems = Array.from(container.querySelectorAll(itemSelector)) as HTMLElement[];
     const prevState = prevItems.length ? Flip.getState(prevItems) : null;
-    const hBefore = container.getBoundingClientRect().height;
 
     setTopFive(nextTopFive);
 
@@ -208,8 +207,7 @@ const PushupsCounter = () => {
       const items = Array.from(container.querySelectorAll(itemSelector)) as HTMLElement[];
       if (!items.length) return;
 
-      const hAfter = container.getBoundingClientRect().height;
-      gsap.set(container, { height: hBefore, overflow: "hidden" });
+      // Height is locked via CSS to 5 rows; no JS height tween needed (prevents post-anim snap)
 
       const prefersReduced = typeof window !== "undefined" &&
         !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -245,16 +243,6 @@ const PushupsCounter = () => {
 
       flipTlRef.current = tl;
 
-      // Height tween to avoid jump
-      gsap.to(container, {
-        height: hAfter,
-        duration: prefersReduced ? 0 : 0.9,
-        ease: "power2.out",
-        onComplete: () => {
-          gsap.set(container, { clearProps: "height,overflow" });
-        },
-      });
-
       // Clear transforms after animation to prevent drift
       if (tl) {
         tl.eventCallback("onComplete", () => {
@@ -281,8 +269,8 @@ const PushupsCounter = () => {
         if (target) {
           gsap.fromTo(
             target,
-            { backgroundColor: "rgba(255,235,150,0.7)", scale: 1.04 },
-            { backgroundColor: "transparent", scale: 1, duration: prefersReduced ? 0 : 1.2, ease: "power3.out" }
+            { backgroundColor: "rgba(255,235,150,0.7)", boxShadow: "0 0 0 10px rgba(255,235,150,0.35)" },
+            { backgroundColor: "transparent", boxShadow: "0 0 0 0 rgba(255,235,150,0)", duration: prefersReduced ? 0 : 1.2, ease: "power3.out" }
           );
         }
         lastSubmittedSignatureRef.current = null;
@@ -336,6 +324,20 @@ const PushupsCounter = () => {
       gsap.to(changeEls, { opacity: 0, y: 2, duration: prefersReduced ? 0 : 0.3, ease: "power1.in" });
     }
   }, [changeHintsVisible]);
+
+  // Animate title/list subtly on gender change so the cached swap feels responsive
+  useEffect(() => {
+    if (!isTopFiveViewRef.current) return;
+    const title = topTitleRef.current;
+    const list = listWrapRef.current;
+    const prefersReduced = typeof window !== "undefined" && !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    if (title) {
+      gsap.fromTo(title, { y: 10, opacity: 0.7 }, { y: 0, opacity: 1, duration: prefersReduced ? 0 : 0.35, ease: "power2.out" });
+    }
+    if (list) {
+      gsap.fromTo(list, { y: 6, opacity: 0.9 }, { y: 0, opacity: 1, duration: prefersReduced ? 0 : 0.4, ease: "power2.out" });
+    }
+  }, [gender]);
 
   // Data fetching - instant updates
   const getFromGoogleSheet = async (force = false, options?: { showLoading?: boolean }) => {
@@ -694,7 +696,7 @@ const PushupsCounter = () => {
             ${isTopFiveView ? "opacity-100 scale-100 blur-0 pointer-events-auto" : "opacity-0 scale-95 blur-sm pointer-events-none"}
           `}
         >
-          <div ref={topTitleRef} className="text-9xl mt-2 tracking-tight transition-all duration-700 ease-[cubic-bezier(0.19,1,0.22,1)]">
+          <div ref={topTitleRef} className="text-9xl mt-2 mb-16 tracking-tight transition-all duration-700 ease-[cubic-bezier(0.19,1,0.22,1)]">
             Топ 5 <span className="text-7xl opacity-90">{gender === "Men" ? "Мъже" : "Жени"}</span>
           </div>
           <div className="relative w-full flex flex-col items-center">
@@ -717,37 +719,35 @@ const PushupsCounter = () => {
 
             <div
               ref={setListRef}
-              className={`relative z-0 w-full flex flex-col items-center text-[#222222] transition-[opacity,filter] duration-300 ${
-                topFiveLoading && showLoadingUI ? "" : ""
-              } gap-2`}
+              className={`relative z-0 w-full flex flex-col items-center text-[#222222] transition-[opacity,filter] duration-300 gap-2`}
               style={{ 
-                minHeight: Math.max(18, topFive.length * ROW_HEIGHT_REM) + "rem", 
+                height: ROW_HEIGHT_REM * 5 + "rem", // lock to 5 rows to prevent height snap
                 position: "relative"
               }}
               aria-hidden={topFiveLoading && showLoadingUI}
             >
               {(() => {
                 const occ = new Map<string, number>();
-                return topFive.map((el, i) => {
+                const rows = topFive.map((el, i) => {
                   const identity = toSignature({ firstName: el.firstName, lastName: el.lastName, gender: el.gender as any });
                   const baseUid = getStableUidForIdentity(identity);
                   const n = occ.get(identity) || 0;
                   occ.set(identity, n + 1);
                   const uid = n ? `${baseUid}#${n}` : baseUid;
-                  const displayName = (el.firstName?.trim() || el.lastName?.trim())
-                    ? [el.firstName, el.lastName].filter(Boolean).join(" ")
-                    : "Unknown";
+                  const first = (el.firstName || "").trim();
+                  const last = (el.lastName || "").trim();
+                  const displayName = (first || last) ? `${first} ${last}`.trim() : "Unknown";
 
                   const hint = changeHints[identity];
-                  const visible = changeHintsVisible && !!hint && hint.dir !== "same";
+                  const visible = changeHintsVisible && !!hint; // show dot for unchanged too
                   const hintColor = hint?.dir === "up"
                     ? "text-green-600"
                     : hint?.dir === "down"
                     ? "text-red-600"
                     : hint?.dir === "new"
                     ? "text-green-600"
-                    : "text-gray-400";
-                  const hintSymbol = hint?.dir === "down" ? "↓" : "↑";
+                    : "text-gray-500"; // neutral for unchanged
+                  const hintSymbol = hint?.dir === "down" ? "↓" : hint?.dir === "same" ? "•" : "↑";
 
                   return (
                     <div
@@ -755,30 +755,69 @@ const PushupsCounter = () => {
                       data-key={uid}
                       data-row="true"
                       data-sig={identity}
-                      className="text-4xl px-4 rounded will-change-[opacity,transform,filter] h-14 leading-[3.5rem] w-[80%] max-w-[900px]"
+                      className="px-4 rounded will-change-[opacity,transform,filter] w-[80%] max-w-[1100px] relative"
+                      style={{ height: ROW_HEIGHT_REM + "rem" }}
                     >
                       <div className="w-full h-full flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-6 min-w-0">
-                          <span className="w-12 text-right shrink-0 opacity-100">{i + 1}.</span>
-                          <span className="block overflow-hidden text-ellipsis whitespace-nowrap text-left min-w-0 tracking-tight text-[2.5rem]">
-                            {displayName}
-                          </span>
+                        <div className="flex items-center gap-6 min-w-0 text-left">
+                          <span className="w-12 text-right shrink-0 text-black text-[2rem]">{i + 1}.</span>
+                          <div className="min-w-0 leading-tight">
+                            {first ? (
+                              <div className="truncate font-semibold tracking-tight text-[2.4rem]">{first.toUpperCase()}</div>
+                            ) : (
+                              <div className="truncate font-semibold tracking-tight text-[2.4rem] opacity-70">Unknown</div>
+                            )}
+                            {last && (
+                              <div className="truncate text-[1.7rem] text-black -mt-1">{last.toUpperCase()}</div>
+                            )}
+                          </div>
                         </div>
-                        <div className="shrink-0 relative flex items-center gap-6 pr-10">
+                        <div className="shrink-0 relative flex items-center gap-6 pr-16">
                           <div className="shrink-0 tabular-nums whitespace-nowrap text-[2.2rem]">{el.count} лицеви</div>
-                          <span
-                            data-change
-                            data-dir={hint?.dir || "none"}
-                            className={`pointer-events-none will-change-[opacity,transform] absolute right-0 top-1 -translate-y-1 inline-flex items-center text-[2.4rem] ${hintColor} transition-colors duration-500 ease-out ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"}`}
-                            aria-hidden={!visible}
-                          >
-                            {hintSymbol}
-                          </span>
+                          {/* Centered indicator in fixed square box to avoid layout shift */}
+                          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-12 h-12 flex items-center justify-center">
+                            <span
+                              data-change
+                              data-dir={hint?.dir || "none"}
+                              className={`pointer-events-none will-change-[opacity,transform] text-[2.2rem] leading-none transition-all transition-colors duration-500 ease-out ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"} ${hintColor}`}
+                              aria-hidden={!visible}
+                            >
+                              <span className="w-[1em] h-[1em] flex items-center justify-center leading-none">{hintSymbol}</span>
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
                   );
                 });
+
+                // Skeleton rows to complete Top 5 when fewer entries exist
+                const missing = Math.max(0, 5 - rows.length);
+                const skeletons = Array.from({ length: missing }).map((_, j) => {
+                  const rank = rows.length + j + 1;
+                  return (
+                    <div
+                      key={`skeleton-${rank}`}
+                      data-row="true"
+                      className="px-4 rounded w-[80%] max-w-[1100px]"
+                      style={{ height: ROW_HEIGHT_REM + "rem" }}
+                    >
+                      <div className="w-full h-full flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-6 min-w-0">
+                          <div className="w-12 h-6 rounded bg-gray-400/70" />
+                          <div className="min-w-0">
+                            <div className="h-7 w-[24ch] max-w-[60vw] bg-gray-300/80 rounded" />
+                          </div>
+                        </div>
+                        <div className="shrink-0 flex items-center gap-6 pr-10">
+                          <div className="h-7 w-[14ch] bg-gray-300/80 rounded" />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                });
+
+                return [...rows, ...skeletons];
               })()}
             </div>
           </div>
