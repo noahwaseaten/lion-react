@@ -207,7 +207,7 @@ const PushupsCounter = () => {
     setChangeHints(changes);
     setChangeHintsVisible(true);
     if (changeHintsTimerRef.current) window.clearTimeout(changeHintsTimerRef.current);
-    changeHintsTimerRef.current = window.setTimeout(() => setChangeHintsVisible(false), 4500);
+    changeHintsTimerRef.current = window.setTimeout(() => setChangeHintsVisible(false), 8500);
 
     const container = topFiveRef.current;
     if (!container || !isTopFiveViewRef.current || topFiveLoading || showLoadingUI) {
