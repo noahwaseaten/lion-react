@@ -1,8 +1,20 @@
 // src/app/api/sendToGoogleSheet/route.ts
 
 import { id } from "@/app/constants/sheet";
-import { userInformation } from "@/app/push-ups-counter/page";
 import { NextResponse } from "next/server";
+
+// Define a local copy of the expected payload shape to avoid importing from a page file
+type UserInformation = {
+  firstName: string;
+  familyName: string;
+  age: number | string;
+  gender: 'Male' | 'Female' | 'Men' | 'Women';
+  type: 'Participant' | 'Civilian' | 'Volunteer';
+  bib?: number | string;
+  category?: string;
+  phoneNumber?: string;
+  notes?: string;
+};
 
 export async function POST(
   req: Request,
@@ -10,7 +22,7 @@ export async function POST(
 
   const { data } =
     (await req.json()) as {
-      data: userInformation; // legacy used data: 
+      data: UserInformation; // legacy used data:
     };
 
   try {
@@ -41,8 +53,14 @@ export async function POST(
       return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 
-    const result = await scriptResponse.json();
-    return NextResponse.json(result, { status: 200 });
+    const contentType = scriptResponse.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const result = await scriptResponse.json();
+      return NextResponse.json(result, { status: 200 });
+    } else {
+      const text = await scriptResponse.text();
+      return NextResponse.json({ status: 'OK', response: text }, { status: 200 });
+    }
   } catch (fetchErr: unknown) {
     // Log the raw error to the Next.js console
     let message = "Unknown server error";

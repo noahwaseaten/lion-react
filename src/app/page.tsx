@@ -1,17 +1,15 @@
-import CustomButton from "./components/customButton";
+import Link from 'next/link';
 
 const Home = () => {
-  return <div className="w-screen h-screen flex">
-    <div className="m-auto flex flex-col gap-4">
-      <div className="text-9xl mx-auto">🦁</div>
-      <div className="text-center flex flex-col gap-3 ">
-        <div className="text-4xl font-black">LION</div>
-        <div className="">Unleash your inner strength in the Push Up Challenge</div>
-        <CustomButton name='Push Up Counter' link='/push-ups-counter' />
-        <CustomButton name='Push Up Counter Pretty' link='/push-ups-counter-pretty' />
+  return (
+    <div className="w-screen h-screen flex">
+      <div className="m-auto flex flex-col gap-6 items-center">
+        <Link href="/push-ups-counter-pretty">
+          <div className="text-9xl cursor-pointer">🦁</div>
+        </Link>
       </div>
     </div>
-  </div>
+  );
 }
 
 export default Home;

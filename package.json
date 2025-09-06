@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@number-flow/react": "^0.5.9",
+    "framer-motion": "^12.23.12",
+    "gsap": "^3.13.0",
     "next": "15.3.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
