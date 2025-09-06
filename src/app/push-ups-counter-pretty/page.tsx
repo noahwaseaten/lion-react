@@ -386,24 +386,22 @@ const PushupsCounter = () => {
       const res = await fetch(`/api/getInfoFromGoogleSheet${force ? "?nocache=true" : ""}`, {
         cache: "no-store",
       });
-      const incoming = (await res.json()) as unknown;
+      let incoming = (await res.json()) as unknown;
 
       if (isScriptError(incoming)) {
         console.error("Apps Script error:", incoming.message);
         return null;
       }
-
-      let rowsRaw: RowApi[];
-      if (Array.isArray(incoming)) {
-        rowsRaw = incoming as RowApi[];
-      } else if (typeof incoming === "object" && incoming !== null && Object.keys(incoming as Record<string, unknown>).length === 0) {
-        rowsRaw = [];
-      } else {
-        console.error("Unexpected data format:", incoming);
-        return null;
+      if (!Array.isArray(incoming)) {
+        if (typeof incoming === "object" && incoming !== null && Object.keys(incoming as object).length === 0) {
+          incoming = [];
+        } else {
+          console.error("Unexpected data format:", incoming);
+          return null;
+        }
       }
-
-      const normalized = normalizeRows(rowsRaw);
+      const rows = (incoming as RowApi[]).map((r) => r) as RowApi[];
+      const normalized = normalizeRows(rows);
       setAllRows(normalized);
       allRowsRef.current = normalized;
       try { sessionStorage.setItem(STORAGE_KEY_ROWS, JSON.stringify(normalized)); } catch {}
@@ -503,7 +501,7 @@ const PushupsCounter = () => {
   }, [normalizeRows]);
 
   useEffect(() => {
-    void getFromGoogleSheet();
+    void getFromGoogleSheet(false, { showLoading: false });
   }, [getFromGoogleSheet]);
 
   useEffect(() => {
