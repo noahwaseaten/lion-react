@@ -1,15 +1,36 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import NumberFlow from "@number-flow/react";
 import { gsap } from "gsap";
 import { Flip } from "gsap/Flip";
 
 gsap.registerPlugin(Flip);
 
+// Types
+type Gender = "Men" | "Women";
+interface RowApi {
+  firstName?: string;
+  lastName?: string;
+  name?: string;
+  familyName?: string;
+  fullName?: string;
+  count?: number | string;
+  pushUps?: number | string;
+  pushups?: number | string;
+  gender?: Gender | "Male" | "Female" | string;
+  [k: string]: unknown;
+}
+interface NormalizedRow {
+  firstName: string;
+  lastName: string;
+  count: number;
+  gender?: Gender;
+}
+
 // Stable identity signature, independent of count
-const toSignature = (p: { firstName?: string; lastName?: string; gender?: "Men" | "Women" }) =>
+const toSignature = (p: { firstName?: string; lastName?: string; gender?: Gender }) =>
   `${(p.firstName || "").trim().toLowerCase()}|${(p.lastName || "").trim().toLowerCase()}|${(p.gender || "")}`;
 
 const ROW_HEIGHT_REM = 4.5; // Slightly taller rows for two-line name layout, keeps Flip stable
@@ -49,29 +70,26 @@ const PushupsCounter = () => {
   const countRef = useRef(count);
 
   // Gender & Top 5 view
-  const [gender, setGender] = useState<"Men" | "Women">("Men");
+  const [gender, setGender] = useState<Gender>("Men");
   const genderRef = useRef(gender);
   const [isTopFiveView, setIsTopFiveView] = useState(false);
   const isTopFiveViewRef = useRef(isTopFiveView);
 
   // Data
-  const [topFive, setTopFive] = useState(
-    [] as { firstName: string; lastName?: string; count: number; gender?: "Men" | "Women" }[]
-  );
-  const [allRows, setAllRows] = useState<any[]>([]);
-  const allRowsRef = useRef<any[]>([]);
+  const [topFive, setTopFive] = useState<NormalizedRow[]>([]);
+  // State not read, keep setter only to avoid lint warning while still enabling potential debug toggles
+  const [, setAllRows] = useState<NormalizedRow[]>([]);
+  const allRowsRef = useRef<NormalizedRow[]>([]);
 
   // Loading overlay with crossfade
   const [topFiveLoading, setTopFiveLoading] = useState(false);
   const [showLoadingUI, setShowLoadingUI] = useState(false);
-  const [loadingOpacity, setLoadingOpacity] = useState(0);
-  const loadingDelayRef = useRef<number | null>(null);
   const isFetchingRef = useRef(false);
 
   // Refs for animations & DOM
   const inputEl = useRef<HTMLInputElement | null>(null);
-  const topFiveRef = useRef<HTMLDivElement>(null);
-  const topTitleRef = useRef<HTMLDivElement>(null);
+  const topFiveRef = useRef<HTMLDivElement | null>(null);
+  const topTitleRef = useRef<HTMLDivElement | null>(null);
   // Overlay/list refs for crossfade
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const listWrapRef = useRef<HTMLDivElement | null>(null);
@@ -79,14 +97,14 @@ const PushupsCounter = () => {
   // Stable UIDs per identity to keep React keys consistent across reorders
   const uidCounterRef = useRef(0);
   const identityUidRegistryRef = useRef<Map<string, string>>(new Map());
-  const getStableUidForIdentity = (identitySig: string) => {
+  const getStableUidForIdentity = useCallback((identitySig: string) => {
     let uid = identityUidRegistryRef.current.get(identitySig);
     if (!uid) {
       uid = `uid-${uidCounterRef.current++}`;
       identityUidRegistryRef.current.set(identitySig, uid);
     }
     return uid;
-  };
+  }, []);
 
   // Track last submitted participant to spotlight
   const lastSubmittedSignatureRef = useRef<string | null>(null);
@@ -105,7 +123,7 @@ const PushupsCounter = () => {
   const lastFetchAtRef = useRef(0);
 
   // Helpers
-  const normalizeRows = (rows: any[]) =>
+  const normalizeRows = useCallback((rows: RowApi[]): NormalizedRow[] =>
     rows.map((r) => {
       let first = (r.firstName ?? r.name ?? "").toString().trim();
       let last = (r.lastName ?? r.familyName ?? "").toString().trim();
@@ -118,7 +136,7 @@ const PushupsCounter = () => {
         const letters = /[A-Za-zА-Яа-я]/;
         for (const key in r) {
           if (String(key).toLowerCase() === "gender") continue;
-          const val = r[key];
+          const val = (r as Record<string, unknown>)[key];
           if (typeof val === "string") {
             const s = val.trim();
             if (s && letters.test(s)) {
@@ -134,29 +152,28 @@ const PushupsCounter = () => {
         first = last;
         last = "";
       }
+      const g = r.gender;
+      const genderNorm: Gender | undefined = g === "Male" ? "Men" : g === "Female" ? "Women" : (g as Gender | undefined);
       return {
         firstName: first,
         lastName: last,
         count: Number(r.count ?? r.pushUps ?? r.pushups ?? 0) || 0,
-        gender: (r.gender === "Male" ? "Men" : r.gender === "Female" ? "Women" : r.gender) as
-          | "Men"
-          | "Women"
-          | undefined,
-      };
-    });
+        gender: genderNorm,
+      } as NormalizedRow;
+    }), []);
 
-  const computeTopFive = (rows: any[], currentGender: "Men" | "Women") => {
-    const normalized = normalizeRows(rows);
+  const computeTopFive = useCallback((rows: RowApi[] | NormalizedRow[], currentGender: Gender): NormalizedRow[] => {
+    const normalized = normalizeRows(rows as RowApi[]);
     return normalized
       .filter((a) => a.count > 0 && (a.firstName || a.lastName))
       .filter((a) => !a.gender || a.gender === currentGender)
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
-  };
+  }, [normalizeRows]);
 
   // Core: animate reorder with GSAP Flip (flow-safe)
-  const setTopFiveWithAnimation = (
-    nextTopFive: { firstName: string; lastName?: string; count: number; gender?: "Men" | "Women" }[],
+  const setTopFiveWithAnimation = useCallback((
+    nextTopFive: NormalizedRow[],
     opts?: { spotlightSignature?: string | null }
   ) => {
     // Compute change hints (rank deltas) vs previous snapshot for current gender
@@ -164,7 +181,7 @@ const PushupsCounter = () => {
     const nextRankMap = new Map<string, number>();
     const changes: Record<string, { dir: "up" | "down" | "same" | "new"; delta: number }> = {};
     nextTopFive.forEach((el, idx) => {
-      const identity = toSignature({ firstName: el.firstName, lastName: el.lastName, gender: el.gender as any });
+      const identity = toSignature({ firstName: el.firstName, lastName: el.lastName, gender: el.gender as Gender });
       const newRank = idx + 1;
       nextRankMap.set(identity, newRank);
       const prevRank = prevRankMap.get(identity);
@@ -226,12 +243,12 @@ const PushupsCounter = () => {
           scale: false,
           onEnter: (els) =>
             gsap.fromTo(
-              els,
+              els as HTMLElement[] | gsap.TweenTarget,
               { opacity: 0, filter: "blur(8px)" },
               { opacity: 1, filter: "blur(0px)", duration: prefersReduced ? 0 : 0.4, ease: "power2.out" }
             ),
           onLeave: (els) =>
-            gsap.to(els, { opacity: 0, filter: "blur(8px)", duration: prefersReduced ? 0 : 0.3, ease: "power1.in" }),
+            gsap.to(els as HTMLElement[] | gsap.TweenTarget, { opacity: 0, filter: "blur(8px)", duration: prefersReduced ? 0 : 0.3, ease: "power1.in" }),
         });
       } else {
         tl = gsap.timeline().fromTo(
@@ -276,12 +293,7 @@ const PushupsCounter = () => {
         lastSubmittedSignatureRef.current = null;
       }
     });
-  };
-
-  const handleGoogleSheetsInfo = (info: any[]) => {
-    const filtered = computeTopFive(info, genderRef.current);
-    setTopFiveWithAnimation(filtered);
-  };
+  }, [showLoadingUI, topFiveLoading]);
 
   // Animate crossfade of loading UI and list
   useEffect(() => {
@@ -340,7 +352,7 @@ const PushupsCounter = () => {
   }, [gender]);
 
   // Data fetching - instant updates
-  const getFromGoogleSheet = async (force = false, options?: { showLoading?: boolean }) => {
+  const getFromGoogleSheet = useCallback(async (force = false, options?: { showLoading?: boolean }): Promise<NormalizedRow[] | null> => {
     const showLoading = options?.showLoading !== false;
     if (isFetchingRef.current) return null;
 
@@ -366,27 +378,30 @@ const PushupsCounter = () => {
       const res = await fetch(`/api/getInfoFromGoogleSheet${force ? "?nocache=true" : ""}`, {
         cache: "no-store",
       });
-      let data = await res.json();
-      if (data && data.status === "ERROR") {
-        console.error("Apps Script error:", data.message);
+      let data = (await res.json()) as unknown;
+      if (data && typeof data === "object" && (data as any).status === "ERROR") {
+        console.error("Apps Script error:", (data as any).message);
         return null;
       }
       if (!Array.isArray(data)) {
-        if (typeof data === "object" && data !== null && Object.keys(data).length === 0) data = [];
+        if (typeof data === "object" && data !== null && Object.keys(data as object).length === 0) data = [];
         else {
           console.error("Unexpected data format:", data);
           return null;
         }
       }
-      setAllRows(data);
-      allRowsRef.current = data;
-      try { sessionStorage.setItem(STORAGE_KEY_ROWS, JSON.stringify(data)); } catch {}
+      const rows = (data as RowApi[]).map((r) => r) as RowApi[];
+      const normalized = normalizeRows(rows);
+      setAllRows(normalized);
+      allRowsRef.current = normalized;
+      try { sessionStorage.setItem(STORAGE_KEY_ROWS, JSON.stringify(normalized)); } catch {}
       
       // Apply data immediately when ready
       if (isTopFiveViewRef.current) {
-        handleGoogleSheetsInfo(data);
+        const filtered = computeTopFive(normalized, genderRef.current);
+        setTopFiveWithAnimation(filtered);
       }
-      return data;
+      return normalized;
     } catch (err) {
       console.error("Error fetching from internal API:", err);
       return null;
@@ -398,10 +413,10 @@ const PushupsCounter = () => {
       }
       isFetchingRef.current = false;
     }
-  };
+  }, [computeTopFive, normalizeRows, setTopFiveWithAnimation]);
 
   // Submit to Google Sheet
-  const sendToGoogleSheet = async () => {
+  const sendToGoogleSheet = useCallback(async () => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
     try {
@@ -411,12 +426,12 @@ const PushupsCounter = () => {
         count: countRef.current,
         gender: genderRef.current,
         age: "",
-      };
+      } as const;
 
       lastSubmittedSignatureRef.current = toSignature({
         firstName: payload.firstName,
         lastName: payload.familyName,
-        gender: payload.gender as any,
+        gender: payload.gender as Gender,
       });
 
       const res = await fetch("/api/sendToGoogleSheet", {
@@ -430,7 +445,7 @@ const PushupsCounter = () => {
 
       if (!res.ok) {
         if (contentType && contentType.includes("application/json")) {
-          const err = await res.json();
+          const err = (await res.json()) as { error?: string };
           throw new Error(err.error || `HTTP ${res.status}`);
         } else {
           const errText = await res.text();
@@ -446,14 +461,14 @@ const PushupsCounter = () => {
 
       // Refresh leaderboard after save (silent to keep UI stable)
       setTimeout(() => {
-        getFromGoogleSheet(true, { showLoading: false });
+        void getFromGoogleSheet(true, { showLoading: false });
       }, 0);
     } catch (err) {
       console.error("Error sending to Google Sheet:", err);
     } finally {
       isFetchingRef.current = false;
     }
-  };
+  }, [getFromGoogleSheet]);
 
   // Effects
   useEffect(() => {
@@ -465,18 +480,19 @@ const PushupsCounter = () => {
     try {
       const raw = typeof window !== "undefined" ? sessionStorage.getItem(STORAGE_KEY_ROWS) : null;
       if (raw) {
-        const rows = JSON.parse(raw);
+        const rows = JSON.parse(raw) as RowApi[] | NormalizedRow[];
         if (Array.isArray(rows)) {
-          setAllRows(rows);
-          allRowsRef.current = rows;
+          const normalized = normalizeRows(rows as RowApi[]);
+          setAllRows(normalized);
+          allRowsRef.current = normalized;
         }
       }
     } catch {}
-  }, []);
+  }, [normalizeRows]);
 
   useEffect(() => {
-    getFromGoogleSheet();
-  }, []);
+    void getFromGoogleSheet();
+  }, [getFromGoogleSheet]);
 
   useEffect(() => {
     if (isTopFiveView) {
@@ -486,9 +502,9 @@ const PushupsCounter = () => {
         setTopFiveWithAnimation(computeTopFive(rows, genderRef.current));
       }
       // Fetch in background without overlay, then animate reordering
-      getFromGoogleSheet(true, { showLoading: false });
+      void getFromGoogleSheet(true, { showLoading: false });
     }
-  }, [isTopFiveView]);
+  }, [isTopFiveView, computeTopFive, getFromGoogleSheet, setTopFiveWithAnimation]);
 
   useEffect(() => {
     if (!isTopFiveViewRef.current) return;
@@ -497,8 +513,8 @@ const PushupsCounter = () => {
       setTopFiveWithAnimation(computeTopFive(rows, genderRef.current));
     }
     // Always refresh silently when gender switches while Top 5 is open
-    getFromGoogleSheet(true, { showLoading: false });
-  }, [gender]);
+    void getFromGoogleSheet(true, { showLoading: false });
+  }, [gender, computeTopFive, getFromGoogleSheet, setTopFiveWithAnimation]);
 
   // Refs sync
   useEffect(() => {
@@ -553,7 +569,7 @@ const PushupsCounter = () => {
           break;
         case "Enter":
           if (submittedRef.current) {
-            sendToGoogleSheet();
+            void sendToGoogleSheet();
             setName("");
             setCount(0);
             setSubmitted(false);
@@ -604,7 +620,7 @@ const PushupsCounter = () => {
           if (isTopFiveViewRef.current) {
             e.preventDefault();
             e.stopPropagation();
-            getFromGoogleSheet(true, { showLoading: false });
+            void getFromGoogleSheet(true, { showLoading: false });
           }
           break;
       }
@@ -618,13 +634,13 @@ const PushupsCounter = () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, []);
+  }, [getFromGoogleSheet, sendToGoogleSheet]);
 
   // Helper to attach both refs to the list element
-  const setListRef = (el: HTMLDivElement | null) => {
+  const setListRef = useCallback((el: HTMLDivElement | null) => {
     topFiveRef.current = el;
     listWrapRef.current = el;
-  };
+  }, []);
 
   return (
     <div className="w-screen h-screen flex bg-[#f5f5f5]">
@@ -712,7 +728,7 @@ const PushupsCounter = () => {
               }}
             >
               <div className="flex items-center gap-4">
-                <div className="w-8 h-8 border-[3px] border-gray-300 border-t-black rounded-full animate-spin"></div>
+                <div className="w-8 h-8 border-[3px] border-gray-300 border-t-black rounded-full animate-spin" aria-label="Loading" />
                 <span className="text-4xl font-semibold tracking-wide text-gray-700">Зареждане…</span>
               </div>
             </div>
@@ -724,20 +740,19 @@ const PushupsCounter = () => {
                 height: ROW_HEIGHT_REM * 5 + "rem", // lock to 5 rows to prevent height snap
                 position: "relative"
               }}
+              role="list"
               aria-hidden={topFiveLoading && showLoadingUI}
             >
               {(() => {
                 const occ = new Map<string, number>();
                 const rows = topFive.map((el, i) => {
-                  const identity = toSignature({ firstName: el.firstName, lastName: el.lastName, gender: el.gender as any });
+                  const identity = toSignature({ firstName: el.firstName, lastName: el.lastName, gender: el.gender as Gender });
                   const baseUid = getStableUidForIdentity(identity);
                   const n = occ.get(identity) || 0;
                   occ.set(identity, n + 1);
                   const uid = n ? `${baseUid}#${n}` : baseUid;
                   const first = (el.firstName || "").trim();
                   const last = (el.lastName || "").trim();
-                  const displayName = (first || last) ? `${first} ${last}`.trim() : "Unknown";
-
                   const hint = changeHints[identity];
                   const visible = changeHintsVisible && !!hint; // show dot for unchanged too
                   const hintColor = hint?.dir === "up"
@@ -757,6 +772,7 @@ const PushupsCounter = () => {
                       data-sig={identity}
                       className="px-4 rounded will-change-[opacity,transform,filter] w-[80%] max-w-[1100px] relative"
                       style={{ height: ROW_HEIGHT_REM + "rem" }}
+                      role="listitem"
                     >
                       <div className="w-full h-full flex items-center justify-between gap-4">
                         <div className="flex items-center gap-6 min-w-0 text-left">
@@ -801,6 +817,7 @@ const PushupsCounter = () => {
                       data-row="true"
                       className="px-4 rounded w-[80%] max-w-[1100px]"
                       style={{ height: ROW_HEIGHT_REM + "rem" }}
+                      role="listitem"
                     >
                       <div className="w-full h-full flex items-center justify-between gap-4">
                         <div className="flex items-center gap-6 min-w-0">

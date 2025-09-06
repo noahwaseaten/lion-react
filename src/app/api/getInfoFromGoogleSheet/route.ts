@@ -1,6 +1,26 @@
 import { id } from '@/app/constants/sheet';
 import { NextResponse } from 'next/server';
 
+// Types for normalization
+type Gender = 'Men' | 'Women';
+interface RowApi {
+  firstName?: string;
+  lastName?: string;
+  name?: string;
+  familyName?: string;
+  count?: number | string;
+  pushUps?: number | string;
+  pushups?: number | string;
+  gender?: Gender | 'Male' | 'Female' | string;
+  [k: string]: unknown;
+}
+interface NormalizedRow {
+  firstName: string;
+  lastName: string;
+  count: number;
+  gender?: Gender;
+}
+
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
@@ -17,17 +37,23 @@ export async function GET(request: Request) {
     }
 
     if (contentType.includes('application/json')) {
-      const data = await res.json();
-      const normalized = Array.isArray(data)
-        ? data.map((d: any) => ({
-            firstName: d.firstName ?? d.name ?? '',
-            lastName: d.lastName ?? d.familyName ?? '',
-            count: Number(d.count ?? d.pushUps ?? d.pushups ?? 0) || 0,
-            // include gender if present so we can filter Top 5 client-side
-            gender: (d.gender === 'Male' ? 'Men' : d.gender === 'Female' ? 'Women' : d.gender) ?? undefined,
-          }))
-        : (data && data.status === 'ERROR') ? data : [];
-      return NextResponse.json(normalized);
+      const raw = (await res.json()) as unknown;
+      if (Array.isArray(raw)) {
+        const normalized: NormalizedRow[] = (raw as unknown[]).map((d) => {
+          const r = d as RowApi;
+          const first = (r.firstName ?? r.name ?? '').toString().trim();
+          const last = (r.lastName ?? r.familyName ?? '').toString().trim();
+          const count = Number(r.count ?? r.pushUps ?? r.pushups ?? 0) || 0;
+          const g = r.gender;
+          const gender: Gender | undefined = g === 'Male' ? 'Men' : g === 'Female' ? 'Women' : (g as Gender | undefined);
+          return { firstName: first, lastName: last, count, gender };
+        });
+        return NextResponse.json(normalized);
+      }
+      if (raw && typeof raw === 'object' && (raw as { status?: string }).status === 'ERROR') {
+        return NextResponse.json(raw);
+      }
+      return NextResponse.json([]);
     } else {
       const text = await res.text();
       console.error('Expected JSON from Apps Script, got:', contentType, text?.slice(0, 200));
