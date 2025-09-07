@@ -836,8 +836,8 @@ const PushupsCounter = () => {
                             <div className="h-7 w-[24ch] max-w-[60vw] bg-gray-300/80 rounded" />
                           </div>
                         </div>
-                        <div className="shrink-0 flex items-center gap-6 pr-10">
-                          <div className="h-7 w-[14ch] bg-gray-300/80 rounded" />
+                        <div className="shrink-0 flex items-center gap-6 pr-16">
+                          <div className="h-7 w-[15ch] bg-gray-300/80 rounded" />
                         </div>
                       </div>
                     </div>
