@@ -381,10 +381,15 @@ const PushupsCounter = () => {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         const items = Array.from(container.querySelectorAll(itemSelector)) as HTMLElement[];
-        if (!items.length) return;
 
         const prefersReduced = typeof window !== "undefined" &&
           !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+        if (!items.length) {
+          // Restore skeletons since no animation will run
+          if (skeletons.length) gsap.to(skeletons, { opacity: 1, duration: prefersReduced ? 0 : 0.3, ease: "power1.out" });
+          return;
+        }
 
         let tl: gsap.core.Timeline | null = null;
         if (prevState) {
