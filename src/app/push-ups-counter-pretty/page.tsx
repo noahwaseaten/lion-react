@@ -41,7 +41,7 @@ const isScriptError = (val: unknown): val is ScriptError =>
 const toSignature = (p: { firstName?: string; lastName?: string; gender?: Gender }) =>
   `${(p.firstName || "").trim().toLowerCase()}|${(p.lastName || "").trim().toLowerCase()}|${(p.gender || "")}`;
 
-const ROW_HEIGHT_REM = 4.5; // Slightly taller rows for two-line name layout, keeps Flip stable
+const ROW_HEIGHT_REM = 5; // Slightly taller rows for two-line name layout, keeps Flip stable
 const STORAGE_KEY_ROWS = "pushups:rows:v1";
 
 // Tunable timings: env defaults, with optional URL/localStorage overrides for on-site tuning
@@ -947,13 +947,13 @@ const PushupsCounter = () => {
         <div
           className={`
             absolute z-10 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2
-            flex flex-col items-center justify-center h-[50vh] w-full text-center gap-2
+            flex flex-col items-center justify-center h-auto w-full text-center gap-2
             transition-all duration-700
             ${isTopFiveView ? "opacity-100 scale-100 blur-0 pointer-events-auto" : "opacity-0 scale-95 blur-sm pointer-events-none"}
           `}
         >
-          <div ref={topTitleRef} className="text-9xl mt-2 mb-16 tracking-tight transition-all duration-700 ease-[cubic-bezier(0.19,1,0.22,1)]">
-            Топ 5 <span className="text-7xl opacity-90">{gender === "Men" ? "Мъже" : "Жени"}</span>
+          <div ref={topTitleRef} className="text-8xl mt-2 mb-8 tracking-tight transition-all duration-700 ease-[cubic-bezier(0.19,1,0.22,1)]">
+            Топ 5 <span className="text-6xl opacity-90">{gender === "Men" ? "Мъже" : "Жени"}</span>
           </div>
           <div className="relative w-full flex flex-col items-center">
             {/* Loading overlay (crossfaded; stays mounted) */}
@@ -980,9 +980,9 @@ const PushupsCounter = () => {
               ref={setListRef}
               className={`relative z-0 w-full flex flex-col items-center text-[#222222] transition-[opacity,filter] duration-300 gap-2`}
               style={{ 
-                height: ROW_HEIGHT_REM * 5 + "rem", // lock to 5 rows to prevent height snap
+                minHeight: ROW_HEIGHT_REM * 5 + "rem", // lock to 5 rows to prevent height snap
                 position: "relative",
-                overflow: "hidden" // prevent animated items from bleeding outside and glitching with skeletons
+                overflow: "visible" // allow content to expand without cutting
               }}
               role="list"
               aria-hidden={topFiveLoading && showLoadingUI}
