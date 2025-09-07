@@ -55,13 +55,17 @@ const DEFAULT_TIMINGS = {
   genderLoaderMinMs: parseMs(process.env.NEXT_PUBLIC_GENDER_LOADER_MIN_MS, 500),
 };
 
-const LogoSwitcher = () => {
-  const [currentLogo, setCurrentLogo] = useState(0);
+const LogoSwitcher = ({ mode }: { mode: "auto" | "lion" }) => {
+  const [currentLogo, setCurrentLogo] = useState(mode === "lion" ? 1 : 0);
 
   useEffect(() => {
+    if (mode === "lion") {
+      setCurrentLogo(1);
+      return;
+    }
     const interval = setInterval(() => setCurrentLogo((p) => (p === 0 ? 1 : 0)), 12000);
     return () => clearInterval(interval);
-  }, []);
+  }, [mode]);
 
   const logos = ["/Alphawin_logo.svg", "/lionheart.svg"];
 
@@ -768,6 +772,8 @@ const PushupsCounter = () => {
 
   // Keybinds / shortcuts
   const [showKeybinds, setShowKeybinds] = useState(false);
+  const [logoMode, setLogoMode] = useState<"auto" | "lion">("auto");
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Shift") setShowKeybinds(true);
@@ -840,11 +846,15 @@ const PushupsCounter = () => {
           break;
         case "m":
         case "M":
-          if (e.ctrlKey || e.metaKey) setGender("Men");
+          if (e.altKey) setGender("Men");
           break;
         case "w":
         case "W":
-          if (e.ctrlKey || e.metaKey) setGender("Women");
+          if (e.altKey) setGender("Women");
+          break;
+        case "l":
+        case "L":
+          if (e.altKey) setLogoMode(prev => prev === "auto" ? "lion" : "auto");
           break;
         case "r":
         case "R":
@@ -865,7 +875,7 @@ const PushupsCounter = () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [getFromGoogleSheet, sendToGoogleSheet]);
+  }, [getFromGoogleSheet, sendToGoogleSheet, setLogoMode]);
 
   // Helper to attach both refs to the list element
   const setListRef = useCallback((el: HTMLDivElement | null) => {
@@ -877,12 +887,12 @@ const PushupsCounter = () => {
     <div className="w-screen h-screen flex bg-[#f5f5f5]">
       {showKeybinds && (
         <div className="fixed top-2 right-3 text-sm text-black z-50 whitespace-pre">
-          Enter: Start/Finish | Space: +1 | G: -1 | Esc: Reset | Arrows: Toggle Top 5 | Ctrl/Cmd+M: Men | Ctrl/Cmd+W: Women | R (in Top 5): Refresh
+          Enter: Start/Finish | Space: +1 | G: -1 | Esc: Reset | Arrows: Toggle Top 5 | Alt+Y: Men | Alt+W: Women | L: Toggle Logo | R (in Top 5): Refresh
         </div>
       )}
 
       <div className="w-[40vw] mx-auto my-auto py-10 rounded-xl">
-        <LogoSwitcher />
+        <LogoSwitcher mode={logoMode} />
       </div>
 
       <div className="relative z-10 w-[50vw] mr-0 text-[#222222] py-10 rounded-xl select-none">
