@@ -361,6 +361,8 @@ const PushupsCounter = () => {
       try {
         const prevEls = Array.from(container.querySelectorAll('[data-row="true"][data-sig]')) as HTMLElement[];
         if (prevEls.length) gsap.set(prevEls, { clearProps: "transform,filter,willChange" });
+        const prevSkeletons = Array.from(container.querySelectorAll('[data-skeleton="true"]')) as HTMLElement[];
+        if (prevSkeletons.length) gsap.set(prevSkeletons, { clearProps: "opacity" });
       } catch {}
     }
 
@@ -370,6 +372,10 @@ const PushupsCounter = () => {
     const prevState = prevItems.length ? Flip.getState(prevItems) : null;
 
     setTopFive(nextTopFive);
+
+    // Hide skeletons during animation to prevent overlap
+    const skeletons = Array.from(container.querySelectorAll('[data-skeleton="true"]')) as HTMLElement[];
+    if (skeletons.length) gsap.set(skeletons, { opacity: 0 });
 
     // Double-RAF to ensure DOM is ready and styles/layout are committed before Flip
     requestAnimationFrame(() => {
@@ -409,10 +415,11 @@ const PushupsCounter = () => {
 
         flipTlRef.current = tl;
 
-        // Clear transforms after animation to prevent drift
+        // Clear transforms after animation to prevent drift and restore skeletons
         if (tl) {
           tl.eventCallback("onComplete", () => {
             gsap.set(items, { clearProps: "transform,filter,willChange" });
+            if (skeletons.length) gsap.to(skeletons, { opacity: 1, duration: prefersReduced ? 0 : 0.3, ease: "power1.out" });
             flipTlRef.current = null;
           });
         }
@@ -425,20 +432,6 @@ const PushupsCounter = () => {
             { opacity: 0, y: 6 },
             { opacity: 1, y: 0, duration: prefersReduced ? 0 : 0.35, stagger: prefersReduced ? 0 : 0.03, ease: "power2.out" }
           );
-        }
-
-        // Spotlight last submitted participant
-        const spotlightSig = opts?.spotlightSignature ?? lastSubmittedSignatureRef.current;
-        if (spotlightSig) {
-          const target = items.find((el) => String(el.dataset.sig) === spotlightSig);
-          if (target) {
-            gsap.fromTo(
-              target,
-              { backgroundColor: "rgba(255,235,150,0.7)", boxShadow: "0 0 0 10px rgba(255,235,150,0.35)" },
-              { backgroundColor: "transparent", boxShadow: "0 0 0 0 rgba(255,235,150,0)", duration: prefersReduced ? 0 : 1.2, ease: "power3.out" }
-            );
-          }
-          lastSubmittedSignatureRef.current = null;
         }
       });
     });
@@ -575,7 +568,28 @@ const PushupsCounter = () => {
     }
   }, [computeTopFive, normalizeRows, applyOrQueueTopFive]);
 
-  // Subtle blur + dots during gender switch
+  // Subtle blur + dots during gender switch (always show even when cached)
+  useEffect(() => {
+    const overlay = genderOverlayRef.current;
+    const list = listWrapRef.current;
+    if (!overlay || !list) return;
+    const prefersReduced = typeof window !== "undefined" &&
+      !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+    gsap.to(overlay, {
+      opacity: genderSwitchLoading ? 1 : 0,
+      duration: prefersReduced ? 0 : 0.2,
+      ease: "power2.out",
+    });
+
+    gsap.to(list, {
+      filter: genderSwitchLoading ? "blur(2px)" : "blur(0px)",
+      opacity: genderSwitchLoading ? 0.92 : 1,
+      duration: prefersReduced ? 0 : 0.25,
+      ease: "power2.out",
+    });
+  }, [genderSwitchLoading]);
+
   useEffect(() => {
     if (!isTopFiveViewRef.current) return;
     const startedAt = Date.now();
@@ -901,14 +915,14 @@ const PushupsCounter = () => {
               <span className="text-8xl break-words px-2 truncate max-w-[90vw] inline-block">
                 {name.split(" ")[0].toUpperCase()}
               </span>
-              <span className="text-5xl break-words px-2 truncate max-w-[90vw] inline-block">
+              <span className="text-6xl break-words px-2 truncate max-w-[90vw] inline-block">
                 {name.split(" ").slice(1).join(" ").toUpperCase()}
               </span>
             </div>
-            <div className="text-[12rem] flex justify-center w-full">
+            <div className="text-[16rem] flex justify-center w-full">
               <NumberFlow value={countRef.current} locales="en-US" format={{ useGrouping: false }} animated willChange />
             </div>
-            <div className="mb-auto select-none text-6xl flex justify-center w-full">
+            <div className="mb-auto select-none text-8xl flex justify-center w-full">
               <span className="inline-block">Лицеви</span>
             </div>
           </div>
@@ -1002,12 +1016,12 @@ const PushupsCounter = () => {
                             <span className="w-12 text-right shrink-0 text-black text-[2rem]">{rank}.</span>
                             <div className="min-w-0 leading-tight">
                               {first ? (
-                                <div className="truncate font-semibold tracking-tight text-[2.4rem]">{first.toUpperCase()}</div>
+                                <div className="truncate font-semibold tracking-tight text-[2.4rem] max-w-[38ch]">{first.toUpperCase()}</div>
                               ) : (
-                                <div className="truncate font-semibold tracking-tight text-[2.4rem] opacity-70">Unknown</div>
+                                <div className="truncate font-semibold tracking-tight text-[2.4rem] opacity-70 max-w-[38ch]">Unknown</div>
                               )}
                               {last && (
-                                <div className="truncate text-[1.7rem] text-black -mt-1">{last.toUpperCase()}</div>
+                                <div className="truncate text-[1.7rem] text-black -mt-1 max-w-[38ch]">{last.toUpperCase()}</div>
                               )}
                             </div>
                           </div>
@@ -1018,7 +1032,7 @@ const PushupsCounter = () => {
                               <span
                                 data-change
                                 data-dir={hint?.dir || "none"}
-                                className={`pointer-events-none will-change-[opacity,transform] text-[2.2rem] leading-none transition-all transition-colors duration-500 ease-out ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"} ${hintColor}`}
+                                className={`pointer-events-none will-change-[opacity,transform] text-[2.2rem] leading-none transition-all duration-500 ease-out ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"} ${hintColor}`}
                                 aria-hidden={!visible}
                               >
                                 <span className="w-[1em] h-[1em] flex items-center justify-center leading-none">{hintSymbol}</span>
@@ -1035,18 +1049,20 @@ const PushupsCounter = () => {
                     <div
                       key={`skeleton-slot-${rank}`}
                       data-row="true"
-                      className="px-4 rounded w-[80%] max-w-[1100px]"
+                      data-skeleton="true"
+                      className="px-4 rounded w-[80%] max-w-[1100px] z-0"
                       style={{ height: ROW_HEIGHT_REM + "rem" }}
                       role="listitem"
+                      aria-hidden
                     >
                       <div className="w-full h-full flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-6 min-w-0">
+                        <div className="flex items-center gap-6 min-w-0 pointer-events-none">
                           <div className="w-12 h-6 rounded bg-gray-400/70" />
                           <div className="min-w-0">
                             <div className="h-7 w-[24ch] max-w-[60vw] bg-gray-300/80 rounded" />
                           </div>
                         </div>
-                        <div className="shrink-0 flex items-center gap-6 pr-16">
+                        <div className="shrink-0 flex items-center gap-6 pr-16 pointer-events-none">
                           <div className="h-7 w-[15ch] bg-gray-300/80 rounded" />
                         </div>
                       </div>
