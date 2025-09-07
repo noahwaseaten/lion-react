@@ -10,9 +10,13 @@
   },
   "dependencies": {
     "@number-flow/react": "^0.5.9",
+    "@supabase/supabase-js": "^2.57.2",
+    "@types/pg": "^8.15.5",
+    "dotenv": "^17.2.2",
     "framer-motion": "^12.23.12",
     "gsap": "^3.13.0",
     "next": "15.3.3",
+    "pg": "^8.16.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

@@ -47,9 +47,9 @@ export async function POST(
           errorMessage = errJson.message;
         }
       } catch (parseErr) {
-        console.error("Failed to parse Apps Script error JSON:", parseErr);
+        if (process.env.NODE_ENV !== 'production') console.error("Failed to parse Apps Script error JSON:", parseErr);
       }
-      console.error("Apps Script call failed:", errorMessage);
+      if (process.env.NODE_ENV !== 'production') console.error("Apps Script call failed:", errorMessage);
       return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 
@@ -71,7 +71,7 @@ export async function POST(
     } else if (typeof fetchErr === "string") {
       message = fetchErr;
     }
-    console.error("Error in sendToGoogleSheet /fetch:", message);
+    if (process.env.NODE_ENV !== 'production') console.error("Error in sendToGoogleSheet /fetch:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

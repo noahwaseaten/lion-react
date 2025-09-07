@@ -44,11 +44,22 @@ const toSignature = (p: { firstName?: string; lastName?: string; gender?: Gender
 const ROW_HEIGHT_REM = 4.5; // Slightly taller rows for two-line name layout, keeps Flip stable
 const STORAGE_KEY_ROWS = "pushups:rows:v1";
 
+// Tunable timings: env defaults, with optional URL/localStorage overrides for on-site tuning
+const parseMs = (v: unknown, fallback: number) => {
+  const n = typeof v === "number" ? v : v == null ? NaN : parseInt(String(v), 10);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+};
+const DEFAULT_TIMINGS = {
+  settleMs: parseMs(process.env.NEXT_PUBLIC_TOP5_SETTLE_MS, 1200),
+  preSubmitMs: parseMs(process.env.NEXT_PUBLIC_PRESUBMIT_WINDOW_MS, 3000),
+  genderLoaderMinMs: parseMs(process.env.NEXT_PUBLIC_GENDER_LOADER_MIN_MS, 500),
+};
+
 const LogoSwitcher = () => {
   const [currentLogo, setCurrentLogo] = useState(0);
 
   useEffect(() => {
-    const interval = setInterval(() => setCurrentLogo((p) => (p === 0 ? 1 : 0)), 10000);
+    const interval = setInterval(() => setCurrentLogo((p) => (p === 0 ? 1 : 0)), 12000);
     return () => clearInterval(interval);
   }, []);
 
@@ -64,6 +75,45 @@ const LogoSwitcher = () => {
         style={{ objectFit: "contain" }}
         priority
       />
+    </div>
+  );
+};
+
+// Subtle animated three-dots loader used on gender switch
+const ThreeDotsLoader = ({ size = 14, color = "#222222" }: { size?: number; color?: string }) => {
+  const dotsRef = useRef<HTMLSpanElement[]>([]);
+  const setDotRef = useCallback((idx: number) => (el: HTMLSpanElement | null) => {
+    if (el) dotsRef.current[idx] = el;
+  }, []);
+
+  useEffect(() => {
+    const els = dotsRef.current.filter(Boolean);
+    if (!els.length) return;
+    const tl = gsap.to(els, {
+      y: -Math.max(6, size * 0.7),
+      duration: 0.45,
+      ease: "sine.inOut",
+      repeat: -1,
+      yoyo: true,
+      stagger: 0.1,
+    });
+    return () => { try { tl.kill(); } catch {} };
+  }, [size]);
+
+  const dotStyle: React.CSSProperties = {
+    width: size,
+    height: size,
+    borderRadius: size / 2,
+    backgroundColor: color,
+    display: "inline-block",
+    willChange: "transform",
+  };
+
+  return (
+    <div aria-label="Loading" className="flex items-end" style={{ gap: Math.max(4, Math.round(size * 0.6)) }}>
+      <span ref={setDotRef(0)} style={dotStyle} />
+      <span ref={setDotRef(1)} style={dotStyle} />
+      <span ref={setDotRef(2)} style={dotStyle} />
     </div>
   );
 };
@@ -94,6 +144,9 @@ const PushupsCounter = () => {
   const [showLoadingUI, setShowLoadingUI] = useState(false);
   const isFetchingRef = useRef(false);
 
+  // Subtle loading on gender switch (cached-to-fresh)
+  const [genderSwitchLoading, setGenderSwitchLoading] = useState(false);
+
   // Refs for animations & DOM
   const inputEl = useRef<HTMLInputElement | null>(null);
   const topFiveRef = useRef<HTMLDivElement | null>(null);
@@ -101,6 +154,22 @@ const PushupsCounter = () => {
   // Overlay/list refs for crossfade
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const listWrapRef = useRef<HTMLDivElement | null>(null);
+  // Subtle overlay for gender switch
+  const genderOverlayRef = useRef<HTMLDivElement | null>(null);
+  // Track when Top 5 view was opened and defer pending apply if needed
+  const topFiveOpenedAtRef = useRef<number>(0);
+  const pendingApplyTimerRef = useRef<number | null>(null);
+  const pendingApplyVersionRef = useRef(0);
+  // Track last submit time and a snapshot of rows before submit to show on initial open
+  const lastSubmitAtRef = useRef(0);
+  const preSubmitRowsRef = useRef<NormalizedRow[] | null>(null);
+  // Queue for pending apply when Top 5 is closed or settle window hasn't elapsed yet
+  const pendingRowsRef = useRef<{
+    rows: NormalizedRow[];
+    spotlightSig: string | null;
+    clearPre: boolean;
+    version: number;
+  } | null>(null);
 
   // Stable UIDs per identity to keep React keys consistent across reorders
   const uidCounterRef = useRef(0);
@@ -129,6 +198,62 @@ const PushupsCounter = () => {
   const [changeHintsVisible, setChangeHintsVisible] = useState(false);
   const changeHintsTimerRef = useRef<number | null>(null);
   const lastFetchAtRef = useRef(0);
+
+  // Runtime-tunable timings (URL/localStorage overrides)
+  const [timings, setTimings] = useState(DEFAULT_TIMINGS);
+  const [preferPreAlways, setPreferPreAlways] = useState(true);
+  useEffect(() => {
+    try {
+      const url = typeof window !== 'undefined' ? new URL(window.location.href) : null;
+      const sp = url ? url.searchParams : null;
+      const lsGet = (k: string) => {
+        try { return localStorage.getItem(k); } catch { return null; }
+      };
+      const read = (keys: string[], fallback: number) => {
+        for (const k of keys) {
+          const qv = sp?.get(k);
+          if (qv != null) return parseMs(qv, fallback);
+        }
+        for (const k of keys) {
+          const lv = lsGet(`timing:${k}`);
+          if (lv != null) return parseMs(lv, fallback);
+        }
+        return fallback;
+      };
+      const readBool = (keys: string[], fallback: boolean) => {
+        const toB = (v: string | null): boolean | null => {
+          if (v == null) return null;
+          const s = String(v).toLowerCase();
+          if (s === '1' || s === 'true' || s === 'yes' || s === 'on') return true;
+          if (s === '0' || s === 'false' || s === 'no' || s === 'off') return false;
+          return null;
+        };
+        for (const k of keys) {
+          const qb = toB(sp?.get(k) ?? null);
+          if (qb !== null) return qb;
+        }
+        for (const k of keys) {
+          const lb = toB(lsGet(`timing:${k}`));
+          if (lb !== null) return lb;
+        }
+        return fallback;
+      };
+      const next = {
+        settleMs: read(["settle", "top5_settle_ms"], DEFAULT_TIMINGS.settleMs),
+        preSubmitMs: read(["pre", "presubmit", "pre_submit_ms"], DEFAULT_TIMINGS.preSubmitMs),
+        genderLoaderMinMs: read(["gloader", "gender_loader_min_ms"], DEFAULT_TIMINGS.genderLoaderMinMs),
+      };
+      setTimings(next);
+      const nextPrefer = readBool(["preAlways", "pre_always"], true);
+      setPreferPreAlways(nextPrefer);
+      // Persist any query-provided overrides for quick iteration
+      const persistIfQP = (key: string) => {
+        const qv = sp?.get(key);
+        if (qv != null) try { localStorage.setItem(`timing:${key}`, qv); } catch {}
+      };
+      ["settle", "top5_settle_ms", "pre", "presubmit", "pre_submit_ms", "gloader", "gender_loader_min_ms", "preAlways", "pre_always"].forEach(persistIfQP);
+    } catch {}
+  }, []);
 
   // Helpers
   const normalizeRows = useCallback((rows: RowApi[]): NormalizedRow[] =>
@@ -172,7 +297,14 @@ const PushupsCounter = () => {
 
   const computeTopFive = useCallback((rows: RowApi[] | NormalizedRow[], currentGender: Gender): NormalizedRow[] => {
     const normalized = normalizeRows(rows as RowApi[]);
-    return normalized
+    // Deduplicate by identity, keeping highest count per person to avoid duplicate entries causing Flip key churn
+    const bestBySig = new Map<string, NormalizedRow>();
+    for (const r of normalized) {
+      const sig = toSignature({ firstName: r.firstName, lastName: r.lastName, gender: r.gender as Gender });
+      const prev = bestBySig.get(sig);
+      if (!prev || r.count > prev.count) bestBySig.set(sig, r);
+    }
+    return Array.from(bestBySig.values())
       .filter((a) => a.count > 0 && (a.firstName || a.lastName))
       .filter((a) => !a.gender || a.gender === currentGender)
       .sort((a, b) => b.count - a.count)
@@ -210,98 +342,145 @@ const PushupsCounter = () => {
     changeHintsTimerRef.current = window.setTimeout(() => setChangeHintsVisible(false), 8500);
 
     const container = topFiveRef.current;
-    if (!container || !isTopFiveViewRef.current || topFiveLoading || showLoadingUI) {
+    // If container not ready or heavy overlay is showing, just set state (it won't be visible or will fade in)
+    if (!container || topFiveLoading || showLoadingUI) {
       setTopFive(nextTopFive);
       if (opts?.spotlightSignature) lastSubmittedSignatureRef.current = opts.spotlightSignature;
       return;
     }
+    // If Top 5 view isn't active, do not mutate DOM/state here; caller must gate/queue applies
+    if (!isTopFiveViewRef.current) {
+      if (opts?.spotlightSignature) lastSubmittedSignatureRef.current = opts.spotlightSignature;
+      return;
+    }
 
-    // Cancel any running Flip to avoid overlap
+    // Cancel any running Flip to avoid overlap and clear any lingering transforms
     if (flipTlRef.current) {
       try { flipTlRef.current.kill(); } catch {}
       flipTlRef.current = null;
+      try {
+        const prevEls = Array.from(container.querySelectorAll('[data-row="true"][data-sig]')) as HTMLElement[];
+        if (prevEls.length) gsap.set(prevEls, { clearProps: "transform,filter,willChange" });
+      } catch {}
     }
 
-    const itemSelector = '[data-row="true"]';
+    // Only include real items (exclude skeletons) to stabilize Flip
+    const itemSelector = '[data-row="true"][data-sig]';
     const prevItems = Array.from(container.querySelectorAll(itemSelector)) as HTMLElement[];
     const prevState = prevItems.length ? Flip.getState(prevItems) : null;
 
     setTopFive(nextTopFive);
 
+    // Double-RAF to ensure DOM is ready and styles/layout are committed before Flip
     requestAnimationFrame(() => {
-      const items = Array.from(container.querySelectorAll(itemSelector)) as HTMLElement[];
-      if (!items.length) return;
+      requestAnimationFrame(() => {
+        const items = Array.from(container.querySelectorAll(itemSelector)) as HTMLElement[];
+        if (!items.length) return;
 
-      // Height is locked via CSS to 5 rows; no JS height tween needed (prevents post-anim snap)
+        const prefersReduced = typeof window !== "undefined" &&
+          !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
-      const prefersReduced = typeof window !== "undefined" &&
-        !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-
-      let tl: gsap.core.Timeline | null = null;
-      if (prevState) {
-        tl = Flip.from(prevState, {
-          targets: items,
-          duration: prefersReduced ? 0 : 0.8,
-          ease: "power3.out",
-          stagger: prefersReduced ? 0 : 0.04,
-          prune: true,
-          // Use absolute positioning during the flip to reduce overlap/teleport
-          absolute: true,
-          // Avoid scaling to reduce visual jumpiness
-          scale: false,
-          onEnter: (els) =>
-            gsap.fromTo(
-              els as HTMLElement[] | gsap.TweenTarget,
-              { opacity: 0, filter: "blur(8px)" },
-              { opacity: 1, filter: "blur(0px)", duration: prefersReduced ? 0 : 0.4, ease: "power2.out" }
-            ),
-          onLeave: (els) =>
-            gsap.to(els as HTMLElement[] | gsap.TweenTarget, { opacity: 0, filter: "blur(8px)", duration: prefersReduced ? 0 : 0.3, ease: "power1.in" }),
-        });
-      } else {
-        tl = gsap.timeline().fromTo(
-          items,
-          { opacity: 0, filter: "blur(10px)" },
-          { opacity: 1, filter: "blur(0px)", duration: prefersReduced ? 0 : 0.5, stagger: prefersReduced ? 0 : 0.06, ease: "power2.out" }
-        );
-      }
-
-      flipTlRef.current = tl;
-
-      // Clear transforms after animation to prevent drift
-      if (tl) {
-        tl.eventCallback("onComplete", () => {
-          gsap.set(items, { clearProps: "transform,filter,willChange" });
-          flipTlRef.current = null;
-        });
-      }
-
-      // Animate change indicators entrance
-      const changeEls = Array.from(container.querySelectorAll('[data-change]')) as HTMLElement[];
-      if (changeEls.length) {
-        gsap.fromTo(
-          changeEls,
-          { opacity: 0, y: 6 },
-          { opacity: 1, y: 0, duration: prefersReduced ? 0 : 0.35, stagger: prefersReduced ? 0 : 0.03, ease: "power2.out" }
-        );
-        // Auto-fade handled by state after timeout
-      }
-
-      // Spotlight last submitted participant
-      const spotlightSig = opts?.spotlightSignature ?? lastSubmittedSignatureRef.current;
-      if (spotlightSig) {
-        const target = items.find((el) => String(el.dataset.sig) === spotlightSig);
-        if (target) {
-          gsap.fromTo(
-            target,
-            { backgroundColor: "rgba(255,235,150,0.7)", boxShadow: "0 0 0 10px rgba(255,235,150,0.35)" },
-            { backgroundColor: "transparent", boxShadow: "0 0 0 0 rgba(255,235,150,0)", duration: prefersReduced ? 0 : 1.2, ease: "power3.out" }
+        let tl: gsap.core.Timeline | null = null;
+        if (prevState) {
+          tl = Flip.from(prevState, {
+            targets: items,
+            duration: prefersReduced ? 0 : 0.8,
+            ease: "power3.out",
+            stagger: prefersReduced ? 0 : 0.04,
+            prune: true,
+            absolute: true,
+            scale: false,
+            onEnter: (els) =>
+              gsap.fromTo(
+                els as HTMLElement[] | gsap.TweenTarget,
+                { opacity: 0, filter: "blur(8px)" },
+                { opacity: 1, filter: "blur(0px)", duration: prefersReduced ? 0 : 0.4, ease: "power2.out" }
+              ),
+            onLeave: (els) =>
+              gsap.to(els as HTMLElement[] | gsap.TweenTarget, { opacity: 0, filter: "blur(8px)", duration: prefersReduced ? 0 : 0.3, ease: "power1.in" }),
+          });
+        } else {
+          tl = gsap.timeline().fromTo(
+            items,
+            { opacity: 0, filter: "blur(10px)" },
+            { opacity: 1, filter: "blur(0px)", duration: prefersReduced ? 0 : 0.5, stagger: prefersReduced ? 0 : 0.06, ease: "power2.out" }
           );
         }
-        lastSubmittedSignatureRef.current = null;
-      }
+
+        flipTlRef.current = tl;
+
+        // Clear transforms after animation to prevent drift
+        if (tl) {
+          tl.eventCallback("onComplete", () => {
+            gsap.set(items, { clearProps: "transform,filter,willChange" });
+            flipTlRef.current = null;
+          });
+        }
+
+        // Animate change indicators entrance
+        const changeEls = Array.from(container.querySelectorAll('[data-change]')) as HTMLElement[];
+        if (changeEls.length) {
+          gsap.fromTo(
+            changeEls,
+            { opacity: 0, y: 6 },
+            { opacity: 1, y: 0, duration: prefersReduced ? 0 : 0.35, stagger: prefersReduced ? 0 : 0.03, ease: "power2.out" }
+          );
+        }
+
+        // Spotlight last submitted participant
+        const spotlightSig = opts?.spotlightSignature ?? lastSubmittedSignatureRef.current;
+        if (spotlightSig) {
+          const target = items.find((el) => String(el.dataset.sig) === spotlightSig);
+          if (target) {
+            gsap.fromTo(
+              target,
+              { backgroundColor: "rgba(255,235,150,0.7)", boxShadow: "0 0 0 10px rgba(255,235,150,0.35)" },
+              { backgroundColor: "transparent", boxShadow: "0 0 0 0 rgba(255,235,150,0)", duration: prefersReduced ? 0 : 1.2, ease: "power3.out" }
+            );
+          }
+          lastSubmittedSignatureRef.current = null;
+        }
+      });
     });
   }, [showLoadingUI, topFiveLoading]);
+
+  // Helper: apply or queue Top 5 updates based on open state and settle window
+  const applyOrQueueTopFive = useCallback((
+    rows: NormalizedRow[],
+    opts?: { spotlightSignature?: string | null; clearPreOnApply?: boolean; forceImmediate?: boolean }
+  ) => {
+    const spotlight = opts?.spotlightSignature ?? null;
+    const clearPre = !!opts?.clearPreOnApply;
+    const version = ++pendingApplyVersionRef.current;
+
+    // If Top 5 is not open, stash and wait for open
+    if (!isTopFiveViewRef.current) {
+      pendingRowsRef.current = { rows, spotlightSig: spotlight, clearPre, version };
+      return;
+    }
+
+    const openedAt = topFiveOpenedAtRef.current || 0;
+    const now = Date.now();
+    const shouldDelay = !opts?.forceImmediate && openedAt && now - openedAt < timings.settleMs;
+
+    if (shouldDelay) {
+      pendingRowsRef.current = { rows, spotlightSig: spotlight, clearPre, version };
+      const delay = Math.max(0, openedAt + timings.settleMs - now);
+      if (pendingApplyTimerRef.current) window.clearTimeout(pendingApplyTimerRef.current);
+      pendingApplyTimerRef.current = window.setTimeout(() => {
+        if (!isTopFiveViewRef.current) return; // still closed somehow
+        const p = pendingRowsRef.current;
+        if (!p || p.version !== version) return; // superseded
+        setTopFiveWithAnimation(p.rows, { spotlightSignature: p.spotlightSig });
+        if (p.clearPre) preSubmitRowsRef.current = null;
+        pendingRowsRef.current = null;
+      }, delay);
+    } else {
+      setTopFiveWithAnimation(rows, { spotlightSignature: spotlight });
+      if (clearPre) preSubmitRowsRef.current = null;
+      pendingRowsRef.current = null;
+    }
+  }, [timings.settleMs, setTopFiveWithAnimation]);
 
   // Animate crossfade of loading UI and list
   useEffect(() => {
@@ -332,35 +511,8 @@ const PushupsCounter = () => {
     });
   }, [topFiveLoading, showLoadingUI]);
 
-  // Animate hiding of change indicators
-  useEffect(() => {
-    const container = topFiveRef.current;
-    if (!container) return;
-    const changeEls = Array.from(container.querySelectorAll('[data-change]')) as HTMLElement[];
-    if (!changeEls.length) return;
-    const prefersReduced = typeof window !== "undefined" &&
-      !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-    if (!changeHintsVisible) {
-      gsap.to(changeEls, { opacity: 0, y: 2, duration: prefersReduced ? 0 : 0.3, ease: "power1.in" });
-    }
-  }, [changeHintsVisible]);
-
-  // Animate title/list subtly on gender change so the cached swap feels responsive
-  useEffect(() => {
-    if (!isTopFiveViewRef.current) return;
-    const title = topTitleRef.current;
-    const list = listWrapRef.current;
-    const prefersReduced = typeof window !== "undefined" && !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-    if (title) {
-      gsap.fromTo(title, { y: 10, opacity: 0.7 }, { y: 0, opacity: 1, duration: prefersReduced ? 0 : 0.35, ease: "power2.out" });
-    }
-    if (list) {
-      gsap.fromTo(list, { y: 6, opacity: 0.9 }, { y: 0, opacity: 1, duration: prefersReduced ? 0 : 0.4, ease: "power2.out" });
-    }
-  }, [gender]);
-
   // Data fetching - instant updates
-  const getFromGoogleSheet = useCallback(async (force = false, options?: { showLoading?: boolean }): Promise<NormalizedRow[] | null> => {
+  const getFromGoogleSheet = useCallback(async (force = false, options?: { showLoading?: boolean; deferIfOpening?: boolean }): Promise<NormalizedRow[] | null> => {
     const showLoading = options?.showLoading !== false;
     if (isFetchingRef.current) return null;
 
@@ -389,14 +541,14 @@ const PushupsCounter = () => {
       let incoming = (await res.json()) as unknown;
 
       if (isScriptError(incoming)) {
-        console.error("Apps Script error:", incoming.message);
+        if (process.env.NODE_ENV !== "production") console.error("Apps Script error:", incoming.message);
         return null;
       }
       if (!Array.isArray(incoming)) {
         if (typeof incoming === "object" && incoming !== null && Object.keys(incoming as object).length === 0) {
           incoming = [];
         } else {
-          console.error("Unexpected data format:", incoming);
+          if (process.env.NODE_ENV !== "production") console.error("Unexpected data format:", incoming);
           return null;
         }
       }
@@ -406,14 +558,12 @@ const PushupsCounter = () => {
       allRowsRef.current = normalized;
       try { sessionStorage.setItem(STORAGE_KEY_ROWS, JSON.stringify(normalized)); } catch {}
       
-      // Apply data immediately when ready
-      if (isTopFiveViewRef.current) {
-        const filtered = computeTopFive(normalized, genderRef.current);
-        setTopFiveWithAnimation(filtered);
-      }
+      // Compute filtered for current gender and apply/queue with settle gating
+      const filtered = computeTopFive(normalized, genderRef.current);
+      applyOrQueueTopFive(filtered, { clearPreOnApply: true });
       return normalized;
     } catch (err) {
-      console.error("Error fetching from internal API:", err);
+      if (process.env.NODE_ENV !== "production") console.error("Error fetching from internal API:", err);
       return null;
     } finally {
       // Hide loading (crossfade) if it was shown
@@ -423,13 +573,37 @@ const PushupsCounter = () => {
       }
       isFetchingRef.current = false;
     }
-  }, [computeTopFive, normalizeRows, setTopFiveWithAnimation]);
+  }, [computeTopFive, normalizeRows, applyOrQueueTopFive]);
+
+  // Subtle blur + dots during gender switch
+  useEffect(() => {
+    if (!isTopFiveViewRef.current) return;
+    const startedAt = Date.now();
+    setGenderSwitchLoading(true);
+
+    // Swap instantly to cached for responsive feel (forceImmediate to bypass settle gating)
+    const rows = allRowsRef.current;
+    if (rows && rows.length) {
+      applyOrQueueTopFive(computeTopFive(rows, genderRef.current), { forceImmediate: true });
+    }
+
+    Promise.resolve(getFromGoogleSheet(true, { showLoading: false }))
+      .finally(() => {
+        const elapsed = Date.now() - startedAt;
+        const remaining = Math.max(0, timings.genderLoaderMinMs - elapsed);
+        window.setTimeout(() => setGenderSwitchLoading(false), remaining);
+      });
+  }, [gender, computeTopFive, getFromGoogleSheet, applyOrQueueTopFive, timings.genderLoaderMinMs]);
 
   // Submit to Google Sheet
   const sendToGoogleSheet = useCallback(async () => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
     try {
+      // Capture a snapshot before submitting so the next Top 5 open can show the pre-submit state briefly
+      preSubmitRowsRef.current = allRowsRef.current ? [...allRowsRef.current] : null;
+      lastSubmitAtRef.current = Date.now();
+
       const payload = {
         firstName: nameRef.current.split(" ")[0],
         familyName: nameRef.current.split(" ").slice(1).join(" "),
@@ -474,7 +648,7 @@ const PushupsCounter = () => {
         void getFromGoogleSheet(true, { showLoading: false });
       }, 0);
     } catch (err) {
-      console.error("Error sending to Google Sheet:", err);
+      if (process.env.NODE_ENV !== "production") console.error("Error sending to Google Sheet:", err);
     } finally {
       isFetchingRef.current = false;
     }
@@ -506,25 +680,55 @@ const PushupsCounter = () => {
 
   useEffect(() => {
     if (isTopFiveView) {
-      // Show cached immediately
-      const rows = allRowsRef.current;
-      if (rows && rows.length) {
-        setTopFiveWithAnimation(computeTopFive(rows, genderRef.current));
+      // Mark open time and clear any previous pending apply
+      topFiveOpenedAtRef.current = Date.now();
+      if (pendingApplyTimerRef.current) {
+        window.clearTimeout(pendingApplyTimerRef.current);
+        pendingApplyTimerRef.current = null;
       }
-      // Fetch in background without overlay, then animate reordering
-      void getFromGoogleSheet(true, { showLoading: false });
-    }
-  }, [isTopFiveView, computeTopFive, getFromGoogleSheet, setTopFiveWithAnimation]);
 
-  useEffect(() => {
-    if (!isTopFiveViewRef.current) return;
-    const rows = allRowsRef.current;
-    if (rows && rows.length) {
-      setTopFiveWithAnimation(computeTopFive(rows, genderRef.current));
+      // Choose initial rows: prefer pre-submit snapshot if available (always if enabled), otherwise cached
+      const now = Date.now();
+      let initialRows = allRowsRef.current;
+      if (
+        preSubmitRowsRef.current &&
+        preSubmitRowsRef.current.length &&
+        (preferPreAlways || (lastSubmitAtRef.current && now - lastSubmitAtRef.current < timings.preSubmitMs))
+      ) {
+        initialRows = preSubmitRowsRef.current;
+      }
+
+      if (initialRows && initialRows.length) {
+        // Force immediate to ensure pre-open snapshot shows instantly for audience reaction
+        applyOrQueueTopFive(computeTopFive(initialRows, genderRef.current), { forceImmediate: true });
+      }
+      // If we had pending rows queued while closed, queue/apply them using settle gating now
+      if (pendingRowsRef.current) {
+        const p = pendingRowsRef.current;
+        applyOrQueueTopFive(p.rows, { spotlightSignature: p.spotlightSig, clearPreOnApply: p.clearPre });
+      }
+
+      // Fetch in background without overlay; apply will be gated by helper
+      void getFromGoogleSheet(true, { showLoading: false, deferIfOpening: true });
+    } else {
+      // Closed: cancel any pending apply timer (but keep pending rows in ref)
+      if (pendingApplyTimerRef.current) {
+        window.clearTimeout(pendingApplyTimerRef.current);
+        pendingApplyTimerRef.current = null;
+      }
+      topFiveOpenedAtRef.current = 0;
     }
-    // Always refresh silently when gender switches while Top 5 is open
-    void getFromGoogleSheet(true, { showLoading: false });
-  }, [gender, computeTopFive, getFromGoogleSheet, setTopFiveWithAnimation]);
+  }, [isTopFiveView, computeTopFive, getFromGoogleSheet, applyOrQueueTopFive, timings.preSubmitMs, preferPreAlways]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (pendingApplyTimerRef.current) {
+        window.clearTimeout(pendingApplyTimerRef.current);
+        pendingApplyTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // Refs sync
   useEffect(() => {
@@ -547,22 +751,20 @@ const PushupsCounter = () => {
   const [showKeybinds, setShowKeybinds] = useState(false);
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Tab") setShowKeybinds(true);
+      if (e.key === "Shift") setShowKeybinds(true);
 
       if (!submittedRef.current) {
-        const active = document.activeElement as HTMLElement | null;
+        const active = document.activeElement;
         const input = inputEl.current;
         const isPrintable = e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
         // Do not steal keys for typing when Top 5 view is active
         if (!isTopFiveViewRef.current && input && (!active || active !== input) && (isPrintable || e.key === "Backspace")) {
-          e.preventDefault();
-          input.focus();
-          if (isPrintable) {
-            const next = (nameRef.current || "") + e.key;
+          if (e.key === "Backspace") {
+            const next = (nameRef.current || "").slice(0, -1);
             nameRef.current = next;
             setName(next);
-          } else if (e.key === "Backspace") {
-            const next = (nameRef.current || "").slice(0, -1);
+          } else if (isPrintable) {
+            const next = (nameRef.current || "") + e.key;
             nameRef.current = next;
             setName(next);
           }
@@ -636,7 +838,7 @@ const PushupsCounter = () => {
       }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === "Tab") setShowKeybinds(false);
+      if (e.key === "Shift") setShowKeybinds(false);
     };
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
@@ -685,7 +887,6 @@ const PushupsCounter = () => {
                     autoComplete="off"
                     autoFocus
                   />
-                  <div className="text-center text-base mt-2">Пол: {gender === "Men" ? "Мъже" : "Жени"}</div>
                 </div>
               </div>
             </div>
@@ -701,7 +902,7 @@ const PushupsCounter = () => {
                 {name.split(" ")[0].toUpperCase()}
               </span>
               <span className="text-5xl break-words px-2 truncate max-w-[90vw] inline-block">
-                {name.split(" ").slice(1).join("").toUpperCase()}
+                {name.split(" ").slice(1).join(" ").toUpperCase()}
               </span>
             </div>
             <div className="text-[12rem] flex justify-center w-full">
@@ -736,6 +937,9 @@ const PushupsCounter = () => {
                 opacity: 0,
                 pointerEvents: "none"
               }}
+              role="status"
+              aria-live="polite"
+              aria-busy={topFiveLoading && showLoadingUI}
             >
               <div className="flex items-center gap-4">
                 <div className="w-8 h-8 border-[3px] border-gray-300 border-t-black rounded-full animate-spin" aria-label="Loading" />
@@ -748,82 +952,88 @@ const PushupsCounter = () => {
               className={`relative z-0 w-full flex flex-col items-center text-[#222222] transition-[opacity,filter] duration-300 gap-2`}
               style={{ 
                 height: ROW_HEIGHT_REM * 5 + "rem", // lock to 5 rows to prevent height snap
-                position: "relative"
+                position: "relative",
+                overflow: "hidden" // prevent animated items from bleeding outside and glitching with skeletons
               }}
               role="list"
               aria-hidden={topFiveLoading && showLoadingUI}
+              aria-busy={topFiveLoading && showLoadingUI}
             >
               {(() => {
-                const occ = new Map<string, number>();
-                const rows = topFive.map((el, i) => {
-                  const identity = toSignature({ firstName: el.firstName, lastName: el.lastName, gender: el.gender as Gender });
-                  const baseUid = getStableUidForIdentity(identity);
-                  const n = occ.get(identity) || 0;
-                  occ.set(identity, n + 1);
-                  const uid = n ? `${baseUid}#${n}` : baseUid;
-                  const first = (el.firstName || "").trim();
-                  const last = (el.lastName || "").trim();
-                  const hint = changeHints[identity];
-                  const visible = changeHintsVisible && !!hint; // show dot for unchanged too
-                  const hintColor = hint?.dir === "up"
-                    ? "text-green-600"
-                    : hint?.dir === "down"
-                    ? "text-red-600"
-                    : hint?.dir === "new"
-                    ? "text-green-600"
-                    : "text-gray-500"; // neutral for unchanged
-                  const hintSymbol = hint?.dir === "down" ? "↓" : hint?.dir === "same" ? "•" : "↑";
+                // Build 5 fixed rank slots to avoid skeleton/row overlap during Flip
+                const slots: Array<NormalizedRow | null> = [
+                  topFive[0] ?? null,
+                  topFive[1] ?? null,
+                  topFive[2] ?? null,
+                  topFive[3] ?? null,
+                  topFive[4] ?? null,
+                ];
 
-                  return (
-                    <div
-                      key={uid}
-                      data-key={uid}
-                      data-row="true"
-                      data-sig={identity}
-                      className="px-4 rounded will-change-[opacity,transform,filter] w-[80%] max-w-[1100px] relative"
-                      style={{ height: ROW_HEIGHT_REM + "rem" }}
-                      role="listitem"
-                    >
-                      <div className="w-full h-full flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-6 min-w-0 text-left">
-                          <span className="w-12 text-right shrink-0 text-black text-[2rem]">{i + 1}.</span>
-                          <div className="min-w-0 leading-tight">
-                            {first ? (
-                              <div className="truncate font-semibold tracking-tight text-[2.4rem]">{first.toUpperCase()}</div>
-                            ) : (
-                              <div className="truncate font-semibold tracking-tight text-[2.4rem] opacity-70">Unknown</div>
-                            )}
-                            {last && (
-                              <div className="truncate text-[1.7rem] text-black -mt-1">{last.toUpperCase()}</div>
-                            )}
+                return slots.map((row, i) => {
+                  const rank = i + 1;
+                  if (row) {
+                    const identity = toSignature({ firstName: row.firstName, lastName: row.lastName, gender: row.gender as Gender });
+                    const uid = getStableUidForIdentity(identity);
+                    const first = (row.firstName || "").trim();
+                    const last = (row.lastName || "").trim();
+                    const hint = changeHints[identity];
+                    const visible = changeHintsVisible && !!hint;
+                    const hintColor = hint?.dir === "up"
+                      ? "text-green-600"
+                      : hint?.dir === "down"
+                      ? "text-red-600"
+                      : hint?.dir === "new"
+                      ? "text-green-600"
+                      : "text-gray-500";
+                    const hintSymbol = hint?.dir === "down" ? "↓" : hint?.dir === "same" ? "•" : "↑";
+
+                    return (
+                      <div
+                        key={uid}
+                        data-key={uid}
+                        data-row="true"
+                        data-sig={identity}
+                        className="px-4 rounded will-change-[opacity,transform,filter] w-[80%] max-w-[1100px] relative z-10"
+                        style={{ height: ROW_HEIGHT_REM + "rem" }}
+                        role="listitem"
+                      >
+                        <div className="w-full h-full flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-6 min-w-0 text-left">
+                            <span className="w-12 text-right shrink-0 text-black text-[2rem]">{rank}.</span>
+                            <div className="min-w-0 leading-tight">
+                              {first ? (
+                                <div className="truncate font-semibold tracking-tight text-[2.4rem]">{first.toUpperCase()}</div>
+                              ) : (
+                                <div className="truncate font-semibold tracking-tight text-[2.4rem] opacity-70">Unknown</div>
+                              )}
+                              {last && (
+                                <div className="truncate text-[1.7rem] text-black -mt-1">{last.toUpperCase()}</div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                        <div className="shrink-0 relative flex items-center gap-6 pr-16">
-                          <div className="shrink-0 tabular-nums whitespace-nowrap text-[2.2rem]">{el.count} лицеви</div>
-                          {/* Centered indicator in fixed square box to avoid layout shift */}
-                          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-12 h-12 flex items-center justify-center">
-                            <span
-                              data-change
-                              data-dir={hint?.dir || "none"}
-                              className={`pointer-events-none will-change-[opacity,transform] text-[2.2rem] leading-none transition-all transition-colors duration-500 ease-out ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"} ${hintColor}`}
-                              aria-hidden={!visible}
-                            >
-                              <span className="w-[1em] h-[1em] flex items-center justify-center leading-none">{hintSymbol}</span>
-                            </span>
+                          <div className="shrink-0 relative flex items-center gap-6 pr-16">
+                            <div className="shrink-0 tabular-nums whitespace-nowrap text-[2.2rem]">{row.count} лицеви</div>
+                            {/* Centered indicator in fixed square box to avoid layout shift */}
+                            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-12 h-12 flex items-center justify-center">
+                              <span
+                                data-change
+                                data-dir={hint?.dir || "none"}
+                                className={`pointer-events-none will-change-[opacity,transform] text-[2.2rem] leading-none transition-all transition-colors duration-500 ease-out ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"} ${hintColor}`}
+                                aria-hidden={!visible}
+                              >
+                                <span className="w-[1em] h-[1em] flex items-center justify-center leading-none">{hintSymbol}</span>
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                });
+                    );
+                  }
 
-                // Skeleton rows to complete Top 5 when fewer entries exist
-                const missing = Math.max(0, 5 - rows.length);
-                const skeletons = Array.from({ length: missing }).map((_, j) => {
-                  const rank = rows.length + j + 1;
+                  // Skeleton for empty rank slot
                   return (
                     <div
-                      key={`skeleton-${rank}`}
+                      key={`skeleton-slot-${rank}`}
                       data-row="true"
                       className="px-4 rounded w-[80%] max-w-[1100px]"
                       style={{ height: ROW_HEIGHT_REM + "rem" }}
@@ -843,9 +1053,18 @@ const PushupsCounter = () => {
                     </div>
                   );
                 });
-
-                return [...rows, ...skeletons];
               })()}
+            </div>
+            {/* Subtle gender-switch overlay (below heavy loading overlay) */}
+            <div
+              ref={genderOverlayRef}
+              className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none"
+              style={{ opacity: 0, zIndex: 15 }}
+              aria-hidden={!genderSwitchLoading}
+              role="status"
+              aria-live="polite"
+            >
+              <ThreeDotsLoader size={18} color="#222" />
             </div>
           </div>
         </div>
